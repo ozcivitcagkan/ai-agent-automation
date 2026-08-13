@@ -24,4 +24,4 @@ df = pd.DataFrame(veri)
 # print(df.sort_values("maas", ascending=False))
 
 # print(df.groupby("departman")["maas"].mean())
-print(df.groupby("departman").size())
+# print(df.groupby("departman").size())

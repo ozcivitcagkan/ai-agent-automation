@@ -29,8 +29,8 @@ df = pd.DataFrame(veri)
 # print(df[(df["yas"] > 25) & (df["maas"] > 35000)])
 # print(df[(df["yas"] < 26) | (df["maas"] > 50000)])
 
-df["zam"] = df["maas"] * 2
-df["kategori"] = df["yas"] > 30
+# df["zam"] = df["maas"] * 2
+# df["kategori"] = df["yas"] > 30
 # print(df.sort_values("maas", ascending= False ))
 
 # print(df.groupby("yas")["maas"].mean())
