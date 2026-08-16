@@ -12,8 +12,8 @@ df["embark_town"] = df["embark_town"].fillna(df["embark_town"].mode()[0])
 df["embarked"] = df["embarked"].fillna(df["embarked"].mode()[0])
 
 
-print(df.isnull().sum())
-print(df.shape)
+# print(df.isnull().sum())
+# print(df.shape)
 
 
 # sns.histplot(df["age"], bins = 30)
@@ -44,10 +44,10 @@ print(df.shape)
 # sns.heatmap(sayisal.corr(), annot=True, cmap= "coolwarm")
 # plt.show()
 
-fig, axes = plt.subplots(1, 2, figsize = (12, 5))
+# fig, axes = plt.subplots(1, 2, figsize = (12, 5))
 
-sns.histplot(df["age"], ax=axes[0])
-sns.histplot(df["fare"], ax=axes[1])
+# sns.histplot(df["age"], ax=axes[0])
+# sns.histplot(df["fare"], ax=axes[1])
 
 
 # fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -60,5 +60,5 @@ sns.histplot(df["fare"], ax=axes[1])
 # plt.tight_layout()     
 # plt.show()
 
-plt.savefig("grafik_terk.png", dpi=150, bbox_inches="tight")
-plt.show()
+# plt.savefig("grafik_terk.png", dpi=150, bbox_inches="tight")
+# plt.show()
