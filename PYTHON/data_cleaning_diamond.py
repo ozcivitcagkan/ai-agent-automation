@@ -51,6 +51,6 @@ df = df.drop_duplicates()
 # df["carat_grup"] = pd.cut(df["carat"], bins=[0, 0.5, 1, 1.5, 2, 6])
 # print(df.groupby(["carat_grup", "cut"], observed=True)["price"].mean())
 
-df["fiyat_karat"] = df["price"] / df["carat"]
-print(df.groupby("cut")["fiyat_karat"].mean())
-print(df.groupby("clarity")["fiyat_karat"].mean())
+# df["fiyat_karat"] = df["price"] / df["carat"]
+# print(df.groupby("cut")["fiyat_karat"].mean())
+# print(df.groupby("clarity")["fiyat_karat"].mean())
