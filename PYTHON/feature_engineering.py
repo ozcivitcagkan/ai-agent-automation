@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
 
 
 np.random.seed(42)
@@ -25,7 +27,7 @@ balkonlar = ["Var", "Yok"]
 
 balkon = np.random.choice(balkonlar, 200)
 
-print(balkon[:10])
+# print(balkon[:10])
 
 fiyat = (
 
@@ -61,8 +63,10 @@ durum_sirasi = {
 }
 
 df["durum_kod"] = df["durum"].map(durum_sirasi)
+df["balkon_kod"] = (df["balkon"] == "Var").astype(int)
 
-df_encoded = pd.get_dummies(df, columns=["mahalle"])
+
+df_encoded = pd.get_dummies(df, columns=["mahalle"], dtype=int)
 
 # print(df.shape)
 # print(df_encoded.shape)
@@ -106,28 +110,66 @@ df_encoded["m2_yas"] = df_encoded["m2"] / (df_encoded["yas"] + 1)
 
 # plt.show()
 
-scaler = StandardScaler()
+# scaler = StandardScaler()
 
-scaler.fit(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]])
+# scaler.fit(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]])
 
 # print(scaler.mean_)
 # print(scaler.scale_)
 
-scaled_data = scaler.transform(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]])
+# scaled_data = scaler.transform(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]])
 
 # print(scaled_data[:5])
 
-scaled_df = pd.DataFrame(scaled_data,columns=["m2", "oda", "yas", "m2_oda", "m2_yas"])
+# scaled_df = pd.DataFrame(scaled_data,columns=["m2", "oda", "yas", "m2_oda", "m2_yas"])
 
 # print(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]].head())
 # print(scaled_df.head())
 
 # print(scaled_df.describe())
 
-df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]] = scaled_df
+# df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]] = scaled_df
+
+
+df_encoded = df_encoded.drop(["durum", "balkon"], axis=1)
 
 
 # print(df_encoded[["m2", "oda", "yas", "m2_oda", "m2_yas"]].head())
 
-print(df_encoded.columns)
-print(df_encoded.head())
+# print(df_encoded.columns)
+# print(df_encoded.head())
+
+X = df_encoded.drop(["fiyat", "fiyat_log"], axis=1)
+y = df_encoded["fiyat"]
+
+# print(X.shape)
+# print(y.shape)
+# print(X.columns)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=7)
+
+sayisal_kolonlar = ["m2", "oda", "yas", "m2_oda", "m2_yas"]
+
+scaler = StandardScaler()
+
+X_train[sayisal_kolonlar] = scaler.fit_transform(X_train[sayisal_kolonlar])
+X_test[sayisal_kolonlar] = scaler.transform(X_test[sayisal_kolonlar])
+
+# print(X_train[sayisal_kolonlar].describe())
+# print(X_test[sayisal_kolonlar].describe())
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+print(model.score(X_train, y_train))
+print(model.score(X_test, y_test))
+
+
+
+# katsayilar = pd.DataFrame({
+#     "ozellik": X.columns,
+#     "katsayi": model.coef_
+# }).sort_values("katsayi", ascending=False)
+
+# print(katsayilar)
+# print(model.intercept_)
