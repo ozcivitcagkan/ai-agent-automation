@@ -5,6 +5,10 @@ import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_percentage_error
+import matplotlib.pyplot as plt
 
 
 np.random.seed(42)
@@ -161,15 +165,70 @@ X_test[sayisal_kolonlar] = scaler.transform(X_test[sayisal_kolonlar])
 model = LinearRegression()
 model.fit(X_train, y_train)
 
-print(model.score(X_train, y_train))
-print(model.score(X_test, y_test))
+# print(model.score(X_train, y_train))
+# print(model.score(X_test, y_test))
 
 
 
-# katsayilar = pd.DataFrame({
-#     "ozellik": X.columns,
-#     "katsayi": model.coef_
-# }).sort_values("katsayi", ascending=False)
+katsayilar = pd.DataFrame({
+    "ozellik": X.columns,
+    "katsayi": model.coef_
+}).sort_values("katsayi", ascending=False)
 
 # print(katsayilar)
 # print(model.intercept_)
+
+
+tahminler = model.predict(X_test)
+
+mae = mean_absolute_error(y_test, tahminler)
+
+# print("MAE:", mae)
+
+mse = mean_squared_error(y_test, tahminler)
+rmse = np.sqrt(mse)
+
+# print("MSE:", mse)
+# print("RMSE:", rmse)
+
+mape = mean_absolute_percentage_error(y_test, tahminler)
+
+# print("MAPE:", mape * 100)
+
+baseline_tahmin = np.full(len(y_test), y_train.mean())
+baseline_mae = mean_absolute_error(y_test, baseline_tahmin)
+
+# print("Baseline MAE:", baseline_mae)
+# print("Model MAE:", mae)
+
+# plt.scatter(y_test, tahminler, alpha=0.6)
+
+# plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
+
+# plt.xlabel("Gerçek fiyat")
+# plt.ylabel("Tahmin edilen fiyat")
+
+
+artiklar = y_test - tahminler
+
+# plt.scatter(tahminler, artiklar, alpha = 0.6)
+# plt.axhline(0, color = "red", linestyle = "--")
+# plt.xlabel("Tahmin edilen fiyat")
+# plt.ylabel("Artık (gerçek - tahmin)")
+
+# plt.show()
+
+sonuc = pd.DataFrame({"gercek": y_test, "tahmin": tahminler, "hata": y_test - tahminler})
+
+sonuc["mutlak_hata"] = sonuc["hata"].abs()
+
+# print(sonuc.sort_values("mutlak_hata", ascending=False).head(10))
+
+en_kotuler = sonuc.sort_values(
+    "mutlak_hata",
+    ascending=False
+).head(10)
+
+en_kotuler = en_kotuler.join(X_test)
+
+print(en_kotuler)
