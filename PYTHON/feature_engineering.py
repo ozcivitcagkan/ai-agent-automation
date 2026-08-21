@@ -224,11 +224,11 @@ sonuc["mutlak_hata"] = sonuc["hata"].abs()
 
 # print(sonuc.sort_values("mutlak_hata", ascending=False).head(10))
 
-en_kotuler = sonuc.sort_values(
-    "mutlak_hata",
-    ascending=False
-).head(10)
+# en_kotuler = sonuc.sort_values(
+#     "mutlak_hata",
+#     ascending=False
+# ).head(10)
 
-en_kotuler = en_kotuler.join(X_test)
+# en_kotuler = en_kotuler.join(X_test)
 
-print(en_kotuler)
+# print(en_kotuler)
