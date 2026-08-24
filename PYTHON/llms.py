@@ -8,23 +8,46 @@ MODEL = "claude-haiku-4-5"
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-def sor(soru, sistem =None, max_tokens = 300):
-    parametreler = {
-        "model" : MODEL,
-        "max_tokens" : max_tokens,
-        "messages" : [{"role": "user", "content" : soru}]
-    }
+mesajlar = []
 
-    if sistem:
-        parametreler["system"] = sistem
+while True:
+    girdi = input("Sen: ")
 
-    mesaj = client.messages.create(**parametreler)
+    if girdi.lower() in ["q", "çık", "exit"]:
+        break
 
-    if mesaj.stop_reason == "max_tokens":
-        print("uyarı: cevap durdu, max token arttirilmali")
+    mesajlar.append({
+        "role": "user",
+        "content": girdi
+    })
 
-    print(mesaj.usage.input_tokens, mesaj.usage.output_tokens)
+    mesaj = client.messages.create(
+        model=MODEL,
+        max_tokens=500,
+        messages=mesajlar,
+        system="Sen kısa ve net cevap veren bir asistansın. Emoji kullanma."
+    )
 
-    return mesaj.content[0].text
+    metin = mesaj.content[0].text
 
-print(sor("Tell me more about the world", max_tokens=20))
+    print("Claude:", metin)
+
+    mesajlar.append({
+        "role": "assistant",
+        "content": metin
+    })
+
+    if len(mesajlar) > 10:
+        mesajlar = mesajlar[-10:]
+        if mesajlar[0]["role"] == "assistant":
+            mesajlar = mesajlar[1:]
+
+
+
+
+    print(
+        f"Girdi: {mesaj.usage.input_tokens} | "
+        f"Çıktı: {mesaj.usage.output_tokens}"
+    )
+
+
