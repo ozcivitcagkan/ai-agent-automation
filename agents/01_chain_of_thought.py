@@ -1,8 +1,5 @@
 import anthropic
-import os
 from dotenv import load_dotenv
-import re
-import json
 
 load_dotenv()
 
@@ -10,147 +7,119 @@ client = anthropic.Anthropic()
 
 MODEL = "claude-sonnet-4-6"
 
-def sor(prompt):
-    mesaj = client.messages.create(
-        model=MODEL,
-        max_tokens=300,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    )
 
-    return mesaj.content[0].text
+def hesap_makinesi_calistir(islem, sayi1, sayi2):
+    if islem == "topla":
+        return sayi1 + sayi2
+    elif islem == "cikar":
+        return sayi1 - sayi2
+    elif islem == "carp":
+        return sayi1 * sayi2
+    elif islem == "bol":
+        return sayi1 / sayi2
 
 
-cevap = sor("Python nedir? Bir cümleyle açıkla.")
+def hava_durumu_calistir(sehir):
+    dummy_veri = {
+        "İstanbul": "22°C, parçalı bulutlu",
+        "Ankara": "18°C, açık"
+    }
 
-yorum = "Kargo çok geç geldi ama ürün gerçekten kaliteli, tekrar alırım."
+    return dummy_veri.get(sehir, "Bu şehir için veri yok")
 
-prompt = f"""
-Aşağıdaki ürün yorumunu analiz et.
 
-Yorum: {yorum}
-
-Sadece JSON döndür, başka hiçbir açıklama yazma.
-
-{{
-    "duygu": "pozitif/negatif/notr",
-    "sikayet_var_mi": true,
-    "ozet": "en fazla 5 kelime"
-}}
-"""
-
-cevap = sor(prompt)
-
-# sonuc = re.search(r"<duygu>(.*?)</duygu>", cevap)
-# sonuc2 = re.search(r"<sikayet_var_mi>(.*?)</sikayet_var_mi>", cevap)
-# sonuc3 = re.search(r"<ozet>(.*?)</ozet>", cevap)
-
-# duygu = sonuc.group(1)
-# sikayet = sonuc2.group(1)
-# ozet = sonuc3.group(1)
-
-# print(duygu)
-# print(sikayet)
-# print(ozet)
-
-cevap = cevap.replace("```json", "")
-cevap = cevap.replace("```", "")
-cevap = cevap.strip()
-
-veri = json.loads(cevap)
-
-# print(type(veri))
-# print(veri["duygu"])
-# print(veri["sikayet_var_mi"])
-# print(veri["ozet"])
-
-yorumlar = [
-    "Ürün harika, çok memnun kaldım.",
-    "Kargo çok geç geldi ve ürün kırık çıktı.",
-    "Fiyatına göre fena değil.",
-    "Ürünü iki gündür kullanıyorum, şimdilik iyi görünüyor.",
-    "Tam bir hayal kırıklığı, kesinlikle tavsiye etmiyorum."
+araclar = [
+    {
+        "name": "hesap_makinesi",
+        "description": "İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "islem": {
+                    "type": "string",
+                    "enum": ["topla", "cikar", "carp", "bol"]
+                },
+                "sayi1": {
+                    "type": "number"
+                },
+                "sayi2": {
+                    "type": "number"
+                }
+            },
+            "required": ["islem", "sayi1", "sayi2"]
+        }
+    },
+    {
+        "name": "hava_durumu",
+        "description": "Bir şehrin güncel hava durumunu verir.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sehir": {
+                    "type": "string"
+                }
+            },
+            "required": ["sehir"]
+        }
+    }
 ]
-
-
-for yorum in yorumlar:
-
-    prompt = f"""
-    Aşağıdaki ürün yorumunu analiz et.
-
-    Yorum: {yorum}
-
-    Sadece JSON döndür.
-
-    {{
-        "duygu": "pozitif",
-        "sikayet_var_mi": true,
-        "ozet": "en fazla 5 kelime"
-    }}
-    """
-
-    try:
-        veri = json.loads(cevap)
-        print("JSON başarılı")
-    except json.JSONDecodeError:
-        print("JSON BOZULDU")
-
-
-
-prompt1 = """
-Bir mağazada 23 elma var.
-17'si satıldı.
-Sonra 8 kasa daha geldi.
-Her kasada 12 elma var.
-Şu an kaç elma var?
-Sadece sonucu söyle.
-"""
-
-cevap1 = sor(prompt1)
-
-# print("DİREK:")
-# print(cevap1)
-
-prompt2 = """
-Bir mağazada 23 elma var.
-17'si satıldı.
-Sonra 8 kasa daha geldi.
-Her kasada 12 elma var.
-
-Hesabı kısa adımlara ayır ve en sonunda sonucu belirt.
-"""
-
-cevap2 = sor(prompt2)
-
-# print("CHAIN OF THOUGHT LU HALİ:")
-# print(cevap2)
 
 
 mesajlar = [
-    "İstanbul'un nüfusu kaç?",
-    "125'in yüzde 18'i kaç?",
-    "Bugün çok yoruldum."
+    {
+        "role": "user",
+        "content": "İstanbul'da hava nasıl?"
+    }
 ]
 
-for mesaj in mesajlar:
 
-    prompt = f"""
-    Kullanıcının mesajını analiz et.
+mesaj = client.messages.create(
+    model=MODEL,
+    max_tokens=500,
+    tools=araclar,
+    messages=mesajlar
+)
 
-    Kullanıcı: {mesaj}
 
-    Kısa bir gerekçe ver ve hangi aracın
-    kullanılması gerektiğine karar ver.
+tool_blogu = None
 
-    <gerekce>kısa gerekçe</gerekce>
-    <arac>bilgi, hesap_makinesi veya arac_yok</arac>
-    """
+for blok in mesaj.content:
+    if blok.type == "tool_use":
+        tool_blogu = blok
+        break
 
-    cevap = sor(prompt)
 
-    print("\nuser:", mesaj)
-    print(cevap)
+if tool_blogu:
+    if tool_blogu.name == "hesap_makinesi":
+        sonuc = hesap_makinesi_calistir(**tool_blogu.input)
+
+    elif tool_blogu.name == "hava_durumu":
+        sonuc = hava_durumu_calistir(**tool_blogu.input)
+
+    mesajlar.append({
+        "role": "assistant",
+        "content": mesaj.content
+    })
+
+    mesajlar.append({
+        "role": "user",
+        "content": [
+            {
+                "type": "tool_result",
+                "tool_use_id": tool_blogu.id,
+                "content": str(sonuc)
+            }
+        ]
+    })
+
+    son_mesaj = client.messages.create(
+        model=MODEL,
+        max_tokens=500,
+        tools=araclar,
+        messages=mesajlar
+    )
+
+    print(son_mesaj.content[0].text)
+
+else:
+    print(mesaj.content[0].text)
