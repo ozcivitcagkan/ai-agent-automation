@@ -294,18 +294,10 @@ if __name__ == "__main__":
 
     dosya = "izin_politikasi.txt"
 
-    print("\n===== GÖREV A: TXT =====")
-
     txt_metin = txt_oku(dosya)
 
     print(txt_metin)
 
-
-    # =====================================================
-    # 15. GÖREV B: PDF OKUMA
-    # =====================================================
-
-    print("\n===== GÖREV B: PDF =====")
 
     pdf_metin = pdf_oku(
         "izin_politikasi.pdf"
@@ -313,12 +305,6 @@ if __name__ == "__main__":
 
     print(pdf_metin)
 
-
-    # =====================================================
-    # 16. GÖREV C: GENEL DOSYA OKUYUCU
-    # =====================================================
-
-    print("\n===== GÖREV C: GENEL OKUYUCU =====")
 
     print(
         "\nTXT uzunluğu:",
@@ -348,9 +334,6 @@ if __name__ == "__main__":
     )
 
 
-    # =====================================================
-    # 17. GÖREV D: GERÇEK DOSYAYI CHROMA'YA EKLE
-    # =====================================================
 
     print("\n===== GÖREV D: CHROMA =====")
 
@@ -373,12 +356,6 @@ if __name__ == "__main__":
     )
 
 
-    # =====================================================
-    # 18. GÖREV E: GERÇEK DOSYADAN SORU CEVAPLAMA
-    # =====================================================
-
-    print("\n===== GÖREV E: RAG =====")
-
     soru = "Yıllık izin kaç gün?"
 
     cevap, kaynaklar = rag_sor(
@@ -400,12 +377,6 @@ if __name__ == "__main__":
             f"/ chunk {kaynak['chunk_no']}"
         )
 
-
-    # =====================================================
-    # 19. GÖREV F: AYNI DOSYAYI TEKRAR EKLE
-    # =====================================================
-
-    print("\n===== GÖREV F: ID TESTİ =====")
 
     onceki_sayi = koleksiyon.count()
 
