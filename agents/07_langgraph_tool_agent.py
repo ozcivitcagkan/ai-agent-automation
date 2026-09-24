@@ -127,7 +127,6 @@ sonuc = app.invoke(
 
 for mesaj in sonuc["messages"]:
     print(mesaj)
-    print("---")
 
 
 print(app.get_graph().draw_ascii())
