@@ -1,0 +1,10 @@
+anthropic
+python-dotenv
+langgraph
+langchain-anthropic
+langchain-core
+voyageai
+chromadb
+numpy
+pypdf
+python-docx
