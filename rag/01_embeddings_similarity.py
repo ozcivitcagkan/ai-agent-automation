@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import voyageai
 from dotenv import load_dotenv
@@ -7,32 +6,32 @@ load_dotenv()
 
 vo = voyageai.Client()
 
-dokumanlar = [
-    "Kedi kanepede uyuyor",
-    "Kedi koltukta uyukluyor",
-    "Borsa bugün düştü"
+documents = [
+    "The cat is sleeping on the sofa",
+    "The cat is dozing on the armchair",
+    "The stock market fell today"
 ]
 
-sonuc_dokuman = vo.embed(
-    dokumanlar,
+document_result = vo.embed(
+    documents,
     model="voyage-4",
     input_type="document"
 )
 
-dokuman_embeddingleri = sonuc_dokuman.embeddings
+document_embeddings = document_result.embeddings
 
-soru = "Kedilerle ilgili bir cümle bul"
+question = "Find a sentence about cats"
 
-sonuc_soru = vo.embed(
-    [soru],
+question_result = vo.embed(
+    [question],
     model="voyage-4",
     input_type="query"
 )
 
-soru_vektor = sonuc_soru.embeddings[0]
+question_vector = question_result.embeddings[0]
 
 
-def kosinus_benzerlik(a, b):
+def cosine_similarity(a, b):
     a = np.array(a)
     b = np.array(b)
 
@@ -41,28 +40,28 @@ def kosinus_benzerlik(a, b):
     )
 
 
-for i, dokuman_vektoru in enumerate(dokuman_embeddingleri):
-    skor = kosinus_benzerlik(soru_vektor, dokuman_vektoru)
+for i, document_vector in enumerate(document_embeddings):
+    score = cosine_similarity(question_vector, document_vector)
 
-    # print(f"{skor:.4f} -> {dokumanlar[i]}")
+    # print(f"{score:.4f} -> {documents[i]}")
 
-testler = [
-    "Kedi kanepede uyuyor",
-    "Bugün hava çok yağmurlu",
-    "Araba çok hızlı gidiyor",
-    "Otomobil yüksek sürat yapıyor"
+tests = [
+    "The cat is sleeping on the sofa",
+    "It is very rainy today",
+    "The car is going very fast",
+    "The automobile is driving at high speed"
 ]
 
-sonuc = vo.embed(
-    testler,
+result = vo.embed(
+    tests,
     model="voyage-4",
     input_type="document"
 )
 
-v1 = sonuc.embeddings[0]
-v2 = sonuc.embeddings[1]
-v3 = sonuc.embeddings[2]
-v4 = sonuc.embeddings[3]
+v1 = result.embeddings[0]
+v2 = result.embeddings[1]
+v3 = result.embeddings[2]
+v4 = result.embeddings[3]
 
-print("E2 - Alakasız:", kosinus_benzerlik(v1, v2))
-print("E3 - Anlamca benzer:", kosinus_benzerlik(v3, v4))
+print("E2 - Unrelated:", cosine_similarity(v1, v2))
+print("E3 - Similar in meaning:", cosine_similarity(v3, v4))

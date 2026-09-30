@@ -33,7 +33,7 @@ permissions, guardrails, human approval, tests), see
 | `rag/05_rag_evaluation.py` | Retrieval accuracy and generation quality checks on a small test set |
 | `rag/06_multi_format_loader.py` | Loading TXT, PDF and DOCX files into the vector store with stable ids |
 
-The `rag/izin_politikasi.*` files are a short synthetic company leave policy used as sample data.
+The `rag/leave_policy.*` files (TXT, PDF, DOCX) are a short synthetic company policy used as sample data.
 
 ## Setup
 
@@ -53,5 +53,5 @@ python 04_react_agent.py
 
 ## Notes
 
-- This is a learning log, not a library. Variable names, prompts and console output are in Turkish.
+- This is a learning log, not a library. Each script runs on its own and prints its steps to the console.
 - API keys are read from `.env`, which is git-ignored.

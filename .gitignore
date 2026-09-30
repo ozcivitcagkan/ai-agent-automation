@@ -3,4 +3,4 @@
 __pycache__/
 *.pyc
 chroma_db/
-agent_hafiza.json
+agent_memory.json

@@ -8,136 +8,136 @@ client = anthropic.Anthropic()
 MODEL = "claude-sonnet-4-6"
 
 
-def hesap_makinesi_calistir(islem, sayi1, sayi2):
-    if islem == "topla":
-        return sayi1 + sayi2
-    elif islem == "cikar":
-        return sayi1 - sayi2
-    elif islem == "carp":
-        return sayi1 * sayi2
-    elif islem == "bol":
-        return sayi1 / sayi2
+def run_calculator(operation, number1, number2):
+    if operation == "add":
+        return number1 + number2
+    elif operation == "subtract":
+        return number1 - number2
+    elif operation == "multiply":
+        return number1 * number2
+    elif operation == "divide":
+        return number1 / number2
 
 
-def hava_durumu_calistir(sehir):
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+def run_weather(city):
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    return dummy_veri.get(sehir, "Bu şehir için veri yok")
+    return dummy_data.get(city, "No data for this city")
 
 
-araclar = [
+tools = [
     {
-        "name": "hesap_makinesi",
-        "description": "İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar.",
+        "name": "calculator",
+        "description": "Adds, subtracts, multiplies or divides two numbers.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "islem": {
+                "operation": {
                     "type": "string",
-                    "enum": ["topla", "cikar", "carp", "bol"]
+                    "enum": ["add", "subtract", "multiply", "divide"]
                 },
-                "sayi1": {
+                "number1": {
                     "type": "number"
                 },
-                "sayi2": {
+                "number2": {
                     "type": "number"
                 }
             },
-            "required": ["islem", "sayi1", "sayi2"]
+            "required": ["operation", "number1", "number2"]
         }
     },
     {
-        "name": "hava_durumu",
-        "description": "Bir şehrin güncel hava durumunu verir.",
+        "name": "get_weather",
+        "description": "Returns the current weather for a city.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "sehir": {
+                "city": {
                     "type": "string"
                 }
             },
-            "required": ["sehir"]
+            "required": ["city"]
         }
     }
 ]
 
 
-mesajlar = [
+messages = [
     {
         "role": "user",
-        "content": "İstanbul'un sıcaklığını öğren ve sonra bu sıcaklığı 7 ile çarp."
+        "content": "Find the temperature in Istanbul and then multiply that temperature by 7."
     }
 ]
 
 
-MAX_ADIM = 5
-adim = 0
+MAX_STEPS = 5
+step = 0
 
 
-while adim < MAX_ADIM:
+while step < MAX_STEPS:
 
-    adim += 1
+    step += 1
 
-    mesaj = client.messages.create(
+    response = client.messages.create(
         model=MODEL,
         max_tokens=500,
-        tools=araclar,
-        messages=mesajlar
+        tools=tools,
+        messages=messages
     )
 
-    mesajlar.append({
+    messages.append({
         "role": "assistant",
-        "content": mesaj.content
+        "content": response.content
     })
 
-    if mesaj.stop_reason != "tool_use":
+    if response.stop_reason != "tool_use":
 
-        for blok in mesaj.content:
-            if blok.type == "text":
-                print(blok.text)
+        for block in response.content:
+            if block.type == "text":
+                print(block.text)
 
         break
 
-    tool_sonuclari = []
+    tool_results = []
 
-    for blok in mesaj.content:
+    for block in response.content:
 
-        if blok.type != "tool_use":
+        if block.type != "tool_use":
             continue
 
-        print(f"Tool çağrıldı: {blok.name}")
-        print(f"Girdi: {blok.input}")
+        print(f"Tool called: {block.name}")
+        print(f"Input: {block.input}")
 
-        if blok.name == "hesap_makinesi":
+        if block.name == "calculator":
 
-            sonuc = hesap_makinesi_calistir(**blok.input)
+            result = run_calculator(**block.input)
 
-        elif blok.name == "hava_durumu":
+        elif block.name == "get_weather":
 
-            sonuc = hava_durumu_calistir(**blok.input)
+            result = run_weather(**block.input)
 
         else:
 
-            sonuc = f"Bilinmeyen tool: {blok.name}"
+            result = f"Unknown tool: {block.name}"
 
-        print(f"Tool sonucu: {sonuc}")
+        print(f"Tool result: {result}")
 
-        tool_sonuclari.append({
+        tool_results.append({
             "type": "tool_result",
-            "tool_use_id": blok.id,
-            "content": str(sonuc)
+            "tool_use_id": block.id,
+            "content": str(result)
         })
 
-    mesajlar.append({
+    messages.append({
         "role": "user",
-        "content": tool_sonuclari
+        "content": tool_results
     })
 
 
 
-if adim >= MAX_ADIM:
+if step >= MAX_STEPS:
 
-    print(f"Agent MAX_ADIM sınırına ulaştı: {MAX_ADIM}")
+    print(f"Agent reached the MAX_STEPS limit: {MAX_STEPS}")

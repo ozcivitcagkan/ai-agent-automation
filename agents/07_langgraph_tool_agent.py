@@ -3,7 +3,7 @@ from typing import Annotated, TypedDict
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
-from langgraph.graph import END, StateGraph
+from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -14,52 +14,52 @@ load_dotenv()
 MODEL = "claude-sonnet-4-6"
 
 
-@tool
-def hesap_makinesi_calistir(islem: str, sayi1: float, sayi2: float):
-    """İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar."""
+@tool("calculator")
+def run_calculator(operation: str, number1: float, number2: float):
+    """Adds, subtracts, multiplies or divides two numbers."""
     try:
-        if islem in ["topla", "+"]:
-            return sayi1 + sayi2
+        if operation in ["add", "+"]:
+            return number1 + number2
 
-        elif islem in ["cikar", "çıkar", "-"]:
-            return sayi1 - sayi2
+        elif operation in ["subtract", "-"]:
+            return number1 - number2
 
-        elif islem in ["carp", "çarp", "çarpma", "*"]:
-            return sayi1 * sayi2
+        elif operation in ["multiply", "*"]:
+            return number1 * number2
 
-        elif islem in ["bol", "böl", "bölme", "/"]:
-            if sayi2 == 0:
-                return "HATA: Sıfıra bölme yapılamaz"
+        elif operation in ["divide", "/"]:
+            if number2 == 0:
+                return "ERROR: Cannot divide by zero"
 
-            return sayi1 / sayi2
+            return number1 / number2
 
-        return f"HATA: Geçersiz işlem: {islem}"
+        return f"ERROR: Invalid operation: {operation}"
 
     except Exception as e:
-        return f"HATA: {str(e)}"
+        return f"ERROR: {str(e)}"
 
 
 @tool
-def hava_durumu_calistir(sehir: str):
-    """Bir şehrin hava durumunu verir."""
-    if not sehir:
-        return "HATA: Şehir belirtilmedi"
+def run_weather(city: str):
+    """Returns the weather for a city."""
+    if not city:
+        return "ERROR: No city given"
 
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    return dummy_veri.get(
-        sehir,
-        f"HATA: '{sehir}' için veri yok. "
-        f"Mevcut: {list(dummy_veri.keys())}"
+    return dummy_data.get(
+        city,
+        f"ERROR: No data for '{city}'. "
+        f"Available: {list(dummy_data.keys())}"
     )
 
 
-araclar = [
-    hesap_makinesi_calistir,
-    hava_durumu_calistir
+tools = [
+    run_calculator,
+    run_weather
 ]
 
 
@@ -71,62 +71,62 @@ model = ChatAnthropic(
     model=MODEL
 )
 
-model_with_tools = model.bind_tools(araclar)
+model_with_tools = model.bind_tools(tools)
 
 
 def agent_node(state: AgentState):
-    mesaj = model_with_tools.invoke(
+    message = model_with_tools.invoke(
         state["messages"]
     )
 
     return {
-        "messages": [mesaj]
+        "messages": [message]
     }
 
 
-tools_node = ToolNode(araclar)
+tools_node = ToolNode(tools)
 
 
-graf = StateGraph(AgentState)
+graph = StateGraph(AgentState)
 
 
-graf.add_node("agent", agent_node)
+graph.add_node("agent", agent_node)
 
-graf.add_node("tools", tools_node)
-
-
-graf.set_entry_point("agent")
+graph.add_node("tools", tools_node)
 
 
-graf.add_conditional_edges(
+graph.set_entry_point("agent")
+
+
+graph.add_conditional_edges(
     "agent",
     tools_condition
 )
 
 
-graf.add_edge(
+graph.add_edge(
     "tools",
     "agent"
 )
 
 
-app = graf.compile()
+app = graph.compile()
 
 
-sonuc = app.invoke(
+result = app.invoke(
     {
         "messages": [
             {
                 "role": "user",
-                "content": "İstanbul'daki sıcaklığı öğren, sonra bunu 2 ile çarp."
+                "content": "Find the temperature in Istanbul, then multiply it by 2."
             }
         ]
     }
 )
 
 
-for mesaj in sonuc["messages"]:
-    print(mesaj)
+for message in result["messages"]:
+    print(message)
 
 
 print(app.get_graph().draw_ascii())

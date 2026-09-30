@@ -15,205 +15,204 @@ model = ChatAnthropic(model=MODEL)
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
-    sonraki: str
-    asama: str
+    next: str
+    stage: str
 
 
 def supervisor_node(state: AgentState):
-    son_mesaj = state["messages"][-1].content
-    asama = state["asama"]
+    stage = state["stage"]
 
-    karar_prompt = f"""
-Kullanıcının isteği:
+    decision_prompt = f"""
+The user's request:
 
 "{state["messages"][0].content}"
 
-Mevcut aşama:
-"{asama}"
+Current stage:
+"{stage}"
 
-Kurallar:
+Rules:
 
-- Eğer kullanıcı sadece basit bir selamlaşma yaptıysa "bitir" seç.
-- Eğer kullanıcı bilgi veya veri araştırılması istiyorsa "arastirmaci" seç.
-- Eğer aşama "arastirma_tamam" ise ve yazı/paragraf/rapor oluşturulması gerekiyorsa "yazar" seç.
-- Eğer kullanıcı matematiksel bir işlem yapılmasını istiyorsa "hesaplayici" seç.
-- Eğer aşama "yazim_tamam" veya "hesaplama_tamam" ise ve başka bir işlem gerekmiyorsa "bitir" seç.
+- If the user only sent a simple greeting, choose "finish".
+- If the user wants information or data researched, choose "researcher".
+- If the stage is "research_done" and a text/paragraph/report needs to be written, choose "writer".
+- If the user wants a math operation done, choose "calculator".
+- If the stage is "writing_done" or "calculation_done" and no other work is needed, choose "finish".
 
-Sadece şu dört kelimeden birini yaz:
-arastirmaci
-yazar
-hesaplayici
-bitir
+Write only one of these four words:
+researcher
+writer
+calculator
+finish
 """
 
-    cevap = model.invoke(karar_prompt)
+    answer = model.invoke(decision_prompt)
 
-    karar = cevap.content.strip().lower()
+    decision = answer.content.strip().lower()
 
-    print(f"\n[SUPERVISOR] Karar: {karar}")
+    print(f"\n[SUPERVISOR] Decision: {decision}")
 
-    return {"sonraki": karar}
+    return {"next": decision}
 
 
 
-def arastirmaci_node(state: AgentState):
-    print("[ARASTIRMACI] Çalışıyor...")
+def researcher_node(state: AgentState):
+    print("[RESEARCHER] Working...")
 
-    cevap = model.invoke([
+    answer = model.invoke([
         {
             "role": "system",
             "content": (
-                "Sen bir araştırmacısın. "
-                "Sadece gerekli bilgileri araştırma notları halinde ver. "
-                "Paragraf, makale veya son kullanıcıya yönelik metin yazma."
+                "You are a researcher. "
+                "Give only the needed information as research notes. "
+                "Do not write paragraphs, articles or text for the end user."
             )
         },
         *state["messages"]
     ])
 
-    print("[ARASTIRMACI] İş tamamlandı.")
+    print("[RESEARCHER] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "arastirma_tamam"
+        "messages": [answer],
+        "stage": "research_done"
     }
 
 
-def yazar_node(state: AgentState):
-    print("[YAZAR] Çalışıyor...")
+def writer_node(state: AgentState):
+    print("[WRITER] Working...")
 
-    kullanici_istegi = state["messages"][0].content
-    arastirma = state["messages"][-1].content
+    user_request = state["messages"][0].content
+    research = state["messages"][-1].content
 
-    cevap = model.invoke([
+    answer = model.invoke([
         {
             "role": "system",
             "content": (
-                "Sen bir yazarsın. "
-                "Araştırmacının verdiği bilgileri kullanarak "
-                "akıcı ve kısa bir paragraf oluştur. "
-                "Yeni bilgi uydurma."
+                "You are a writer. "
+                "Using the information from the researcher, "
+                "write a short paragraph that reads well. "
+                "Do not make up new information."
             )
         },
         {
             "role": "user",
             "content": f"""
-Kullanıcının isteği:
-{kullanici_istegi}
+The user's request:
+{user_request}
 
-Araştırmacının topladığı bilgiler:
-{arastirma}
+Information gathered by the researcher:
+{research}
 
-Bu bilgileri kullanarak kullanıcıya uygun akıcı bir paragraf yaz.
+Using this information, write a paragraph that reads well and fits the user's request.
 """
         }
     ])
 
-    print("[YAZAR] İş tamamlandı.")
+    print("[WRITER] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "yazim_tamam"
+        "messages": [answer],
+        "stage": "writing_done"
     }
 
-def hesaplayici_node(state: AgentState):
-    print("[HESAPLAYICI] Çalışıyor...")
+def calculator_node(state: AgentState):
+    print("[CALCULATOR] Working...")
 
-    kullanici_istegi = state["messages"][0].content
+    user_request = state["messages"][0].content
 
-    hesaplama_prompt = f"""
-Sen bir hesaplayıcısın.
+    calculation_prompt = f"""
+You are a calculator.
 
-Kullanıcının isteği:
-{kullanici_istegi}
+The user's request:
+{user_request}
 
-Gerekli matematik işlemini yap.
-Sadece hesaplama sonucunu ver.
+Do the needed math operation.
+Give only the result of the calculation.
 """
 
-    cevap = model.invoke([
+    answer = model.invoke([
         {
             "role": "system",
-            "content": "Sen sadece matematik işlemleri yapan bir uzmansın."
+            "content": "You are an expert who only does math operations."
         },
         {
             "role": "user",
-            "content": hesaplama_prompt
+            "content": calculation_prompt
         }
     ])
 
-    print("[HESAPLAYICI] İş tamamlandı.")
+    print("[CALCULATOR] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "hesaplama_tamam"
+        "messages": [answer],
+        "stage": "calculation_done"
     }
 
-def yonlendir(
+def route(
     state: AgentState
-) -> Literal["arastirmaci", "yazar", "hesaplayici","__end__"]:
+) -> Literal["researcher", "writer", "calculator","__end__"]:
 
-    karar = state["sonraki"]
+    decision = state["next"]
 
-    if "arastirmaci" in karar:
-        return "arastirmaci"
+    if "researcher" in decision:
+        return "researcher"
 
-    elif "yazar" in karar:
-        return "yazar"
+    elif "writer" in decision:
+        return "writer"
 
-    elif "hesaplayici" in karar:
-            return "hesaplayici"
+    elif "calculator" in decision:
+            return "calculator"
 
     else:
         return END
 
 
-graf = StateGraph(AgentState)
+graph = StateGraph(AgentState)
 
 
-graf.add_node("supervisor", supervisor_node)
-graf.add_node("arastirmaci", arastirmaci_node)
-graf.add_node("yazar", yazar_node)
-graf.add_node("hesaplayici", hesaplayici_node)
+graph.add_node("supervisor", supervisor_node)
+graph.add_node("researcher", researcher_node)
+graph.add_node("writer", writer_node)
+graph.add_node("calculator", calculator_node)
 
 
-graf.set_entry_point("supervisor")
+graph.set_entry_point("supervisor")
 
 
-graf.add_conditional_edges(
+graph.add_conditional_edges(
     "supervisor",
-    yonlendir,
+    route,
     {
-        "arastirmaci": "arastirmaci",
-        "yazar": "yazar",
-        "hesaplayici": "hesaplayici",
+        "researcher": "researcher",
+        "writer": "writer",
+        "calculator": "calculator",
         END: END
     }
 )
 
 
-graf.add_edge("arastirmaci", "supervisor")
-graf.add_edge("yazar", "supervisor")
-graf.add_edge("hesaplayici", "supervisor")
+graph.add_edge("researcher", "supervisor")
+graph.add_edge("writer", "supervisor")
+graph.add_edge("calculator", "supervisor")
 
-app = graf.compile()
+app = graph.compile()
 
 
-sonuc = app.invoke(
+result = app.invoke(
     {
         "messages": [
             {
                 "role": "user",
-                "content": "125 ile 8'i çarp, sonra sonucu bir cümleye dönüştür"
+                "content": "Multiply 125 by 8, then turn the result into a sentence"
             }
         ],
-        "sonraki": "",
-        "asama": "baslangic"
+        "next": "",
+        "stage": "start"
     },
     config={"recursion_limit": 10}
 )
 
-for m in sonuc["messages"]:
+for m in result["messages"]:
     print(m)
     print("---")
 

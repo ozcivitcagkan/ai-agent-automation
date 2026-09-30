@@ -8,118 +8,118 @@ client = anthropic.Anthropic()
 MODEL = "claude-sonnet-4-6"
 
 
-def hesap_makinesi_calistir(islem, sayi1, sayi2):
-    if islem == "topla":
-        return sayi1 + sayi2
-    elif islem == "cikar":
-        return sayi1 - sayi2
-    elif islem == "carp":
-        return sayi1 * sayi2
-    elif islem == "bol":
-        return sayi1 / sayi2
+def run_calculator(operation, number1, number2):
+    if operation == "add":
+        return number1 + number2
+    elif operation == "subtract":
+        return number1 - number2
+    elif operation == "multiply":
+        return number1 * number2
+    elif operation == "divide":
+        return number1 / number2
 
 
-def hava_durumu_calistir(sehir):
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+def run_weather(city):
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    return dummy_veri.get(sehir, "Bu şehir için veri yok")
+    return dummy_data.get(city, "No data for this city")
 
 
-araclar = [
+tools = [
     {
-        "name": "hesap_makinesi",
-        "description": "İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar.",
+        "name": "calculator",
+        "description": "Adds, subtracts, multiplies or divides two numbers.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "islem": {
+                "operation": {
                     "type": "string",
-                    "enum": ["topla", "cikar", "carp", "bol"]
+                    "enum": ["add", "subtract", "multiply", "divide"]
                 },
-                "sayi1": {
+                "number1": {
                     "type": "number"
                 },
-                "sayi2": {
+                "number2": {
                     "type": "number"
                 }
             },
-            "required": ["islem", "sayi1", "sayi2"]
+            "required": ["operation", "number1", "number2"]
         }
     },
     {
-        "name": "hava_durumu",
-        "description": "Bir şehrin güncel hava durumunu verir.",
+        "name": "get_weather",
+        "description": "Returns the current weather for a city.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "sehir": {
+                "city": {
                     "type": "string"
                 }
             },
-            "required": ["sehir"]
+            "required": ["city"]
         }
     }
 ]
 
 
-mesajlar = [
+messages = [
     {
         "role": "user",
-        "content": "İstanbul'da hava nasıl?"
+        "content": "What is the weather like in Istanbul?"
     }
 ]
 
 
-mesaj = client.messages.create(
+response = client.messages.create(
     model=MODEL,
     max_tokens=500,
-    tools=araclar,
-    messages=mesajlar
+    tools=tools,
+    messages=messages
 )
 
 
-tool_blogu = None
+tool_block = None
 
-for blok in mesaj.content:
-    if blok.type == "tool_use":
-        tool_blogu = blok
+for block in response.content:
+    if block.type == "tool_use":
+        tool_block = block
         break
 
 
-if tool_blogu:
-    if tool_blogu.name == "hesap_makinesi":
-        sonuc = hesap_makinesi_calistir(**tool_blogu.input)
+if tool_block:
+    if tool_block.name == "calculator":
+        result = run_calculator(**tool_block.input)
 
-    elif tool_blogu.name == "hava_durumu":
-        sonuc = hava_durumu_calistir(**tool_blogu.input)
+    elif tool_block.name == "get_weather":
+        result = run_weather(**tool_block.input)
 
-    mesajlar.append({
+    messages.append({
         "role": "assistant",
-        "content": mesaj.content
+        "content": response.content
     })
 
-    mesajlar.append({
+    messages.append({
         "role": "user",
         "content": [
             {
                 "type": "tool_result",
-                "tool_use_id": tool_blogu.id,
-                "content": str(sonuc)
+                "tool_use_id": tool_block.id,
+                "content": str(result)
             }
         ]
     })
 
-    son_mesaj = client.messages.create(
+    final_response = client.messages.create(
         model=MODEL,
         max_tokens=500,
-        tools=araclar,
-        messages=mesajlar
+        tools=tools,
+        messages=messages
     )
 
-    print(son_mesaj.content[0].text)
+    print(final_response.content[0].text)
 
 else:
-    print(mesaj.content[0].text)
+    print(response.content[0].text)

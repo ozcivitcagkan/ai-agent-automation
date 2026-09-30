@@ -21,31 +21,31 @@ client_db = chromadb.PersistentClient(
     path="./chroma_db"
 )
 
-koleksiyon = client_db.get_or_create_collection(
-    name="sirket_politikalari"
+collection = client_db.get_or_create_collection(
+    name="company_policies"
 )
 
-def voyage_embed_document(metinler):
-    sonuc = vo.embed(
-        metinler,
+def voyage_embed_document(texts):
+    result = vo.embed(
+        texts,
         model="voyage-4",
         input_type="document"
     )
 
-    return sonuc.embeddings
+    return result.embeddings
 
 
-def voyage_embed_query(metin):
-    sonuc = vo.embed(
-        [metin],
+def voyage_embed_query(text):
+    result = vo.embed(
+        [text],
         model="voyage-4",
         input_type="query"
     )
 
-    return sonuc.embeddings[0]
+    return result.embeddings[0]
 
 
-def kosinus_benzerlik(a, b):
+def cosine_similarity(a, b):
     a = np.array(a)
     b = np.array(b)
 
@@ -54,55 +54,55 @@ def kosinus_benzerlik(a, b):
     )
 
 
-def ilgili_chunklari_bul(soru, n=3):
+def find_relevant_chunks(question, n=3):
 
-    soru_vektor = voyage_embed_query(soru)
+    question_vector = voyage_embed_query(question)
 
-    sonuclar = koleksiyon.query(
-        query_embeddings=[soru_vektor],
+    results = collection.query(
+        query_embeddings=[question_vector],
         n_results=n
     )
 
-    return sonuclar["documents"][0]
+    return results["documents"][0]
 
 
-def rag_prompt_olustur(soru, chunklar):
+def build_rag_prompt(question, chunks):
 
-    baglam = "\n\n".join(chunklar)
+    context = "\n\n".join(chunks)
 
-    prompt = f"""Aşağıdaki bağlamı kullanarak soruyu cevapla.
+    prompt = f"""Answer the question using the context below.
 
-Sadece bağlamdaki bilgiyi kullan.
-Bağlamda cevap yoksa "Bu bilgi elimde yok" de.
-Hiçbir şey uydurma.
-Kullanıcı yanlış bir varsayım yapıyorsa, bağlamdaki doğru bilgiyle düzelt.
+Use only the information in the context.
+If the answer is not in the context, say "I don't have this information".
+Do not make anything up.
+If the user makes a wrong assumption, correct it with the right information from the context.
 
-Bağlam:
-{baglam}
+Context:
+{context}
 
-Soru:
-{soru}
+Question:
+{question}
 
-Cevap:
+Answer:
 """
 
     return prompt
 
 
 
-def rag_sor(soru, n=3):
+def ask_rag(question, n=3):
 
-    chunklar = ilgili_chunklari_bul(
-        soru,
+    chunks = find_relevant_chunks(
+        question,
         n
     )
 
-    prompt = rag_prompt_olustur(
-        soru,
-        chunklar
+    prompt = build_rag_prompt(
+        question,
+        chunks
     )
 
-    mesaj = client.messages.create(
+    message = client.messages.create(
         model=MODEL,
         max_tokens=500,
         messages=[
@@ -113,137 +113,137 @@ def rag_sor(soru, n=3):
         ]
     )
 
-    cevap = mesaj.content[0].text
+    answer = message.content[0].text
 
-    return cevap, chunklar
+    return answer, chunks
 
 
-# soru = "Maaş ne zaman ödenir?"
+# question = "When are salaries paid?"
 
-# chunklar = ilgili_chunklari_bul(
-#     soru,
+# chunks = find_relevant_chunks(
+#     question,
 #     n=3
 # )
 
-# print("\nSoru:", soru)
+# print("\nQuestion:", question)
 
-# for i, chunk in enumerate(chunklar):
+# for i, chunk in enumerate(chunks):
 #     print(f"\nChunk {i}:")
 #     print(chunk)
 
 
 
-# soru = "Yıllık izin kaç gün?"
+# question = "How many days of annual leave are there?"
 
-# chunklar = ilgili_chunklari_bul(
-#     soru,
+# chunks = find_relevant_chunks(
+#     question,
 #     n=3
 # )
 
-# prompt = rag_prompt_olustur(
-#     soru,
-#     chunklar
+# prompt = build_rag_prompt(
+#     question,
+#     chunks
 # )
 
-# print("\nClaude a gönderilecek prompterk:")
+# print("\nPrompt to send to Claude:")
 # print(prompt)
 
 
-sorular = [
-    "Yıllık izin kaç gün?",
-    "Maaş ne zaman ödenir?",
-    "Uzaktan çalışanlar için kural nedir?"
+questions = [
+    "How many days of annual leave are there?",
+    "When are salaries paid?",
+    "What is the rule for remote employees?"
 ]
 
-for soru in sorular:
+for question in questions:
 
-    cevap, kullanilan_chunklar = rag_sor(
-        soru,
+    answer, used_chunks = ask_rag(
+        question,
         n=3
     )
 
     print("\n--------------------------------")
-    print("SORU:", soru)
+    print("QUESTION:", question)
     print("--------------------------------")
 
-    print("\nCEVAP:")
-    print(cevap)
+    print("\nANSWER:")
+    print(answer)
 
-    print("\nKULLANILAN CHUNKLAR:")
+    print("\nUSED CHUNKS:")
 
-    for chunk in kullanilan_chunklar:
+    for chunk in used_chunks:
         print("-", chunk)
 
 
-# soru = "Şirketin CEO'su kim?"
+# question = "Who is the company's CEO?"
 
-# cevap, kullanilan_chunklar = rag_sor(
-#     soru,
+# answer, used_chunks = ask_rag(
+#     question,
 #     n=3
 # )
 
-# print("\nSORU:")
-# print(soru)
+# print("\nQUESTION:")
+# print(question)
 
-# print("\nCEVAP:")
-# print(cevap)
+# print("\nANSWER:")
+# print(answer)
 
-# soru = "Yıllık izin 30 gün mü?"
+# question = "Is annual leave 30 days?"
 
-# cevap, kullanilan_chunklar = rag_sor(
-#     soru,
+# answer, used_chunks = ask_rag(
+#     question,
 #     n=3
 # )
 
-# print("\nSORU:")
-# print(soru)
+# print("\nQUESTION:")
+# print(question)
 
-# print("\nCEVAP:")
-# print(cevap)
+# print("\nANSWER:")
+# print(answer)
 
 
-def ilgili_chunklari_bul_detayli(soru, n=3):
+def find_relevant_chunks_detailed(question, n=3):
 
-    soru_vektor = voyage_embed_query(
-        soru
+    question_vector = voyage_embed_query(
+        question
     )
 
-    sonuclar = koleksiyon.query(
-        query_embeddings=[soru_vektor],
+    results = collection.query(
+        query_embeddings=[question_vector],
         n_results=n
     )
 
-    detayli = []
+    detailed = []
 
-    for i, dokuman in enumerate(
-        sonuclar["documents"][0]
+    for i, document in enumerate(
+        results["documents"][0]
     ):
 
-        detayli.append(
+        detailed.append(
             {
-                "metin": dokuman,
-                "kategori": sonuclar["metadatas"][0][i]["kategori"]
+                "text": document,
+                "category": results["metadatas"][0][i]["category"]
             }
         )
 
-    return detayli
+    return detailed
 
 
-# soru = "Yıllık izin kaç gün?"
+# question = "How many days of annual leave are there?"
 
-# detayli_sonuclar = ilgili_chunklari_bul_detayli(
-#     soru,
+# detailed_results = find_relevant_chunks_detailed(
+#     question,
 #     n=3
 # )
 
-# print("\nSoru:", soru)
+# print("\nQuestion:", question)
 
-# for sonuc in detayli_sonuclar:
+# for result in detailed_results:
 
-#     print("\nMetin:")
-#     print(sonuc["metin"])
+#     print("\nText:")
+#     print(result["text"])
 
-#     print("Kategori:")
-#     print(sonuc["kategori"])
+#     print("Category:")
+#     print(result["category"])
 
-#  Son iki prompt rpm sınırına takıldı, daha sonra bakılacak.
+#  The last two prompts hit the rpm limit, check them later.

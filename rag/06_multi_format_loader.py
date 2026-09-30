@@ -16,8 +16,8 @@ MODEL = "claude-haiku-4-5"
 
 client_db = chromadb.PersistentClient(path="./chroma_db")
 
-koleksiyon = client_db.get_or_create_collection(
-    name="gercek_dosyalar"
+collection = client_db.get_or_create_collection(
+    name="real_files"
 )
 
 vo = voyageai.Client()
@@ -28,33 +28,33 @@ client = anthropic.Anthropic(
 
 
 
-def paragraf_chunk(metin, max_boyut=500):
-    paragraflar = metin.split("\n\n")
+def paragraph_chunk(text, max_size=500):
+    paragraphs = text.split("\n\n")
 
-    chunklar = []
-    mevcut_chunk = ""
+    chunks = []
+    current_chunk = ""
 
-    for paragraf in paragraflar:
+    for paragraph in paragraphs:
 
-        if len(mevcut_chunk) + len(paragraf) <= max_boyut:
-            mevcut_chunk += paragraf + "\n\n"
+        if len(current_chunk) + len(paragraph) <= max_size:
+            current_chunk += paragraph + "\n\n"
 
         else:
-            if mevcut_chunk:
-                chunklar.append(mevcut_chunk.strip())
+            if current_chunk:
+                chunks.append(current_chunk.strip())
 
-            mevcut_chunk = paragraf + "\n\n"
+            current_chunk = paragraph + "\n\n"
 
-    if mevcut_chunk:
-        chunklar.append(mevcut_chunk.strip())
+    if current_chunk:
+        chunks.append(current_chunk.strip())
 
-    return chunklar
+    return chunks
 
 
 
-def txt_oku(dosya_yolu):
+def read_txt(file_path):
     with open(
-        dosya_yolu,
+        file_path,
         "r",
         encoding="utf-8"
     ) as f:
@@ -62,218 +62,218 @@ def txt_oku(dosya_yolu):
 
 
 
-def pdf_oku(dosya_yolu):
-    reader = PdfReader(dosya_yolu)
+def read_pdf(file_path):
+    reader = PdfReader(file_path)
 
-    tum_metin = ""
+    full_text = ""
 
-    for sayfa in reader.pages:
-        sayfa_metni = sayfa.extract_text() or ""
-        tum_metin += sayfa_metni + "\n"
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        full_text += page_text + "\n"
 
-    return tum_metin
-
-
+    return full_text
 
 
-def docx_oku(dosya_yolu):
-    dokuman = Document(dosya_yolu)
-
-    tum_metin = ""
-
-    for paragraf in dokuman.paragraphs:
-        tum_metin += paragraf.text + "\n"
-
-    return tum_metin
 
 
-def dosya_oku(dosya_yolu):
-    uzanti = os.path.splitext(dosya_yolu)[1].lower()
+def read_docx(file_path):
+    document = Document(file_path)
 
-    if uzanti == ".txt":
-        return txt_oku(dosya_yolu)
+    full_text = ""
 
-    elif uzanti == ".pdf":
-        return pdf_oku(dosya_yolu)
+    for paragraph in document.paragraphs:
+        full_text += paragraph.text + "\n"
 
-    elif uzanti == ".docx":
-        return docx_oku(dosya_yolu)
+    return full_text
+
+
+def read_file(file_path):
+    extension = os.path.splitext(file_path)[1].lower()
+
+    if extension == ".txt":
+        return read_txt(file_path)
+
+    elif extension == ".pdf":
+        return read_pdf(file_path)
+
+    elif extension == ".docx":
+        return read_docx(file_path)
 
     else:
         raise ValueError(
-            f"Desteklenmeyen dosya türü: {uzanti}"
+            f"Unsupported file type: {extension}"
         )
 
 
 
-def voyage_embed_document(metinler):
-    sonuc = vo.embed(
-        metinler,
+def voyage_embed_document(texts):
+    result = vo.embed(
+        texts,
         model="voyage-4",
         input_type="document"
     )
 
-    return sonuc.embeddings
+    return result.embeddings
 
 
 
-def voyage_embed_query(metin):
-    sonuc = vo.embed(
-        [metin],
+def voyage_embed_query(text):
+    result = vo.embed(
+        [text],
         model="voyage-4",
         input_type="query"
     )
 
-    return sonuc.embeddings[0]
+    return result.embeddings[0]
 
 
 
-def dosyayi_koleksiyona_ekle(
-    dosya_yolu,
-    koleksiyon_adi="gercek_dosyalar"
+def add_file_to_collection(
+    file_path,
+    collection_name="real_files"
 ):
-    metin = dosya_oku(dosya_yolu)
+    text = read_file(file_path)
 
-    chunklar = paragraf_chunk(
-        metin,
-        max_boyut=500
+    chunks = paragraph_chunk(
+        text,
+        max_size=500
     )
 
-    if not chunklar:
-        print(f"Dosyada metin bulunamadı: {dosya_yolu}")
+    if not chunks:
+        print(f"No text found in file: {file_path}")
         return
 
-    embeddingler = voyage_embed_document(
-        chunklar
+    embeddings = voyage_embed_document(
+        chunks
     )
 
-    dosya_adi = os.path.basename(
-        dosya_yolu
+    file_name = os.path.basename(
+        file_path
     )
 
     ids = [
-        f"{dosya_adi}_{i}"
-        for i in range(len(chunklar))
+        f"{file_name}_{i}"
+        for i in range(len(chunks))
     ]
 
     metadatas = [
         {
-            "kaynak": dosya_adi,
+            "source": file_name,
             "chunk_no": i
         }
-        for i in range(len(chunklar))
+        for i in range(len(chunks))
     ]
 
-    koleksiyon.add(
+    collection.add(
         ids=ids,
-        embeddings=embeddingler,
-        documents=chunklar,
+        embeddings=embeddings,
+        documents=chunks,
         metadatas=metadatas
     )
 
     print(
-        f"{len(chunklar)} chunk eklendi: {dosya_adi}"
+        f"{len(chunks)} chunks added: {file_name}"
     )
 
 
 
-def klasordeki_tum_dosyalari_ekle(klasor_yolu):
-    dosyalar = (
+def add_all_files_in_folder(folder_path):
+    files = (
         glob.glob(
-            os.path.join(klasor_yolu, "*.txt")
+            os.path.join(folder_path, "*.txt")
         )
         + glob.glob(
-            os.path.join(klasor_yolu, "*.pdf")
+            os.path.join(folder_path, "*.pdf")
         )
         + glob.glob(
-            os.path.join(klasor_yolu, "*.docx")
+            os.path.join(folder_path, "*.docx")
         )
     )
 
-    for dosya in dosyalar:
-        dosyayi_koleksiyona_ekle(dosya)
+    for file in files:
+        add_file_to_collection(file)
 
 
 
 
-def ilgili_chunklari_bul_detayli(
-    soru,
+def find_relevant_chunks_detailed(
+    question,
     n=3
 ):
-    soru_vektor = voyage_embed_query(
-        soru
+    question_vector = voyage_embed_query(
+        question
     )
 
-    sonuclar = koleksiyon.query(
-        query_embeddings=[soru_vektor],
+    results = collection.query(
+        query_embeddings=[question_vector],
         n_results=n
     )
 
-    detayli = []
+    detailed = []
 
-    for i, dokuman in enumerate(
-        sonuclar["documents"][0]
+    for i, document in enumerate(
+        results["documents"][0]
     ):
-        detayli.append(
+        detailed.append(
             {
-                "metin": dokuman,
-                "kaynak": sonuclar["metadatas"][0][i]["kaynak"],
-                "chunk_no": sonuclar["metadatas"][0][i]["chunk_no"]
+                "text": document,
+                "source": results["metadatas"][0][i]["source"],
+                "chunk_no": results["metadatas"][0][i]["chunk_no"]
             }
         )
 
-    return detayli
+    return detailed
 
 
 
-def rag_prompt_olustur(
-    soru,
-    chunklar
+def build_rag_prompt(
+    question,
+    chunks
 ):
-    baglam = "\n\n".join(
-        [chunk["metin"] for chunk in chunklar]
+    context = "\n\n".join(
+        [chunk["text"] for chunk in chunks]
     )
 
-    kaynaklar = "\n".join(
+    sources = "\n".join(
         [
-            f"- {chunk['kaynak']} / chunk {chunk['chunk_no']}"
-            for chunk in chunklar
+            f"- {chunk['source']} / chunk {chunk['chunk_no']}"
+            for chunk in chunks
         ]
     )
 
-    prompt = f"""Aşağıdaki bağlamı kullanarak soruyu cevapla.
+    prompt = f"""Answer the question using the context below.
 
-Sadece bağlamdaki bilgiyi kullan.
-Bağlamda cevap yoksa "Bu bilgi elimde yok" de.
-Hiçbir şey uydurma.
+Use only the information in the context.
+If the answer is not in the context, say "I don't have this information".
+Do not make anything up.
 
-Bağlam:
-{baglam}
+Context:
+{context}
 
-Soru:
-{soru}
+Question:
+{question}
 
-Kaynaklar:
-{kaynaklar}
+Sources:
+{sources}
 
-Cevap:
+Answer:
 """
 
     return prompt
 
 
-def rag_sor(soru, n=3):
-    chunklar = ilgili_chunklari_bul_detayli(
-        soru,
+def ask_rag(question, n=3):
+    chunks = find_relevant_chunks_detailed(
+        question,
         n=n
     )
 
-    prompt = rag_prompt_olustur(
-        soru,
-        chunklar
+    prompt = build_rag_prompt(
+        question,
+        chunks
     )
 
-    mesaj = client.messages.create(
+    message = client.messages.create(
         model=MODEL,
         max_tokens=300,
         messages=[
@@ -284,124 +284,124 @@ def rag_sor(soru, n=3):
         ]
     )
 
-    cevap = mesaj.content[0].text
+    answer = message.content[0].text
 
-    return cevap, chunklar
+    return answer, chunks
 
 
 
 if __name__ == "__main__":
 
-    dosya = "izin_politikasi.txt"
+    file = "leave_policy.txt"
 
-    txt_metin = txt_oku(dosya)
+    txt_text = read_txt(file)
 
-    print(txt_metin)
+    print(txt_text)
 
 
-    pdf_metin = pdf_oku(
-        "izin_politikasi.pdf"
+    pdf_text = read_pdf(
+        "leave_policy.pdf"
     )
 
-    print(pdf_metin)
+    print(pdf_text)
 
 
     print(
-        "\nTXT uzunluğu:",
+        "\nTXT length:",
         len(
-            dosya_oku(
-                "izin_politikasi.txt"
+            read_file(
+                "leave_policy.txt"
             )
         )
     )
 
     print(
-        "PDF uzunluğu:",
+        "PDF length:",
         len(
-            dosya_oku(
-                "izin_politikasi.pdf"
+            read_file(
+                "leave_policy.pdf"
             )
         )
     )
 
     print(
-        "DOCX uzunluğu:",
+        "DOCX length:",
         len(
-            dosya_oku(
-                "izin_politikasi.docx"
+            read_file(
+                "leave_policy.docx"
             )
         )
     )
 
 
 
-    print("\n===== GÖREV D: CHROMA =====")
+    print("\n===== TASK D: CHROMA =====")
 
-    onceki_sayi = koleksiyon.count()
-
-    print(
-        "Önceki kayıt sayısı:",
-        onceki_sayi
-    )
-
-    dosyayi_koleksiyona_ekle(
-        "izin_politikasi.txt"
-    )
-
-    sonraki_sayi = koleksiyon.count()
+    previous_count = collection.count()
 
     print(
-        "Sonraki kayıt sayısı:",
-        sonraki_sayi
+        "Previous record count:",
+        previous_count
+    )
+
+    add_file_to_collection(
+        "leave_policy.txt"
+    )
+
+    next_count = collection.count()
+
+    print(
+        "Next record count:",
+        next_count
     )
 
 
-    soru = "Yıllık izin kaç gün?"
+    question = "How many days of annual leave are there?"
 
-    cevap, kaynaklar = rag_sor(
-        soru,
+    answer, sources = ask_rag(
+        question,
         n=3
     )
 
-    print("\nSoru:")
-    print(soru)
+    print("\nQuestion:")
+    print(question)
 
-    print("\nCevap:")
-    print(cevap)
+    print("\nAnswer:")
+    print(answer)
 
-    print("\nKullanılan kaynaklar:")
+    print("\nSources used:")
 
-    for kaynak in kaynaklar:
+    for source in sources:
         print(
-            f"- {kaynak['kaynak']} "
-            f"/ chunk {kaynak['chunk_no']}"
+            f"- {source['source']} "
+            f"/ chunk {source['chunk_no']}"
         )
 
 
-    onceki_sayi = koleksiyon.count()
+    previous_count = collection.count()
 
     print(
-        "İlk count:",
-        onceki_sayi
+        "First count:",
+        previous_count
     )
 
-    dosyayi_koleksiyona_ekle(
-        "izin_politikasi.txt"
+    add_file_to_collection(
+        "leave_policy.txt"
     )
 
-    sonraki_sayi = koleksiyon.count()
+    next_count = collection.count()
 
     print(
-        "İkinci count:",
-        sonraki_sayi
+        "Second count:",
+        next_count
     )
 
-    if sonraki_sayi == onceki_sayi:
+    if next_count == previous_count:
         print(
-            "Aynı ID'ler nedeniyle yeni kayıt sayısı artmadı."
+            "The record count did not grow because the IDs are the same."
         )
     else:
         print(
-            "Kayıt sayısı değişti. "
-            "ID davranışını Chroma sonucuyla gözlemle."
+            "The record count changed. "
+            "Check how IDs behave in the Chroma result."
         )

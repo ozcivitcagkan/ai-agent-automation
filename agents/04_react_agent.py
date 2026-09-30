@@ -12,181 +12,181 @@ client = anthropic.Anthropic(
 MODEL = "claude-sonnet-4-6"
 
 
-def hesap_makinesi_calistir(islem, sayi1, sayi2):
+def run_calculator(operation, number1, number2):
     try:
-        if islem == "topla":
-            return sayi1 + sayi2
+        if operation == "add":
+            return number1 + number2
 
-        elif islem == "cikar":
-            return sayi1 - sayi2
+        elif operation == "subtract":
+            return number1 - number2
 
-        elif islem == "carp":
-            return sayi1 * sayi2
+        elif operation == "multiply":
+            return number1 * number2
 
-        elif islem == "bol":
-            if sayi2 == 0:
-                return "HATA: Sıfıra bölme yapılamaz"
+        elif operation == "divide":
+            if number2 == 0:
+                return "ERROR: Cannot divide by zero"
 
-            return sayi1 / sayi2
+            return number1 / number2
 
     except Exception as e:
-        return f"HATA: {str(e)}"
+        return f"ERROR: {str(e)}"
 
 
-def hava_durumu_calistir(sehir=None):
-    if not sehir:
-        return "HATA: Şehir belirtilmedi"
+def run_weather(city=None):
+    if not city:
+        return "ERROR: No city given"
 
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    return dummy_veri.get(
-        sehir,
-        f"HATA: '{sehir}' için veri yok. "
-        f"Mevcut: {list(dummy_veri.keys())}"
+    return dummy_data.get(
+        city,
+        f"ERROR: No data for '{city}'. "
+        f"Available: {list(dummy_data.keys())}"
     )
 
 
-ARAC_FONKSIYONLARI = {
-    "hesap_makinesi": hesap_makinesi_calistir,
-    "hava_durumu": hava_durumu_calistir
+tool_functions = {
+    "calculator": run_calculator,
+    "get_weather": run_weather
 }
 
 
-araclar = [
+tools = [
     {
-        "name": "hesap_makinesi",
-        "description": "İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar.",
+        "name": "calculator",
+        "description": "Adds, subtracts, multiplies or divides two numbers.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "islem": {
+                "operation": {
                     "type": "string",
-                    "enum": ["topla", "cikar", "carp", "bol"]
+                    "enum": ["add", "subtract", "multiply", "divide"]
                 },
-                "sayi1": {
+                "number1": {
                     "type": "number"
                 },
-                "sayi2": {
+                "number2": {
                     "type": "number"
                 }
             },
-            "required": ["islem", "sayi1", "sayi2"]
+            "required": ["operation", "number1", "number2"]
         }
     },
     {
-        "name": "hava_durumu",
-        "description": "Bir şehrin hava durumunu verir.",
+        "name": "get_weather",
+        "description": "Returns the weather for a city.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "sehir": {
+                "city": {
                     "type": "string"
                 }
             },
-            "required": ["sehir"]
+            "required": ["city"]
         }
     }
 ]
 
 
-react_system_prompt = """Sen bir görevi adım adım çözen bir asistansın.
+react_system_prompt = """You are an assistant that solves a task step by step.
 
-Her adımda önce ne yapman gerektiğini KISACA açıkla,
-sonra gerekiyorsa aracı çağır.
+At each step, first explain BRIEFLY what you need to do,
+then call a tool if needed.
 
-Düşüncelerini bir cümleyle sınırla.
-Yeterli bilgiye ulaştığında nihai cevabını ver.
+Keep your thoughts to one sentence.
+When you have enough information, give your final answer.
 """
 
 
-def react_agent_calistir(soru, max_adim=5):
-    mesajlar = [
+def run_react_agent(question, max_steps=5):
+    messages = [
         {
             "role": "user",
-            "content": soru
+            "content": question
         }
     ]
 
-    adim = 0
+    step = 0
 
-    while adim < max_adim:
-        adim += 1
+    while step < max_steps:
+        step += 1
 
-        mesaj = client.messages.create(
+        response = client.messages.create(
             model=MODEL,
             max_tokens=500,
             system=react_system_prompt,
-            tools=araclar,
-            messages=mesajlar
+            tools=tools,
+            messages=messages
         )
 
-        mesajlar.append(
+        messages.append(
             {
                 "role": "assistant",
-                "content": mesaj.content
+                "content": response.content
             }
         )
 
-        for blok in mesaj.content:
-            if blok.type == "text" and blok.text.strip():
+        for block in response.content:
+            if block.type == "text" and block.text.strip():
                 print(
-                    f"[Adım {adim} - Düşünce/Cevap]: "
-                    f"{blok.text}"
+                    f"[Step {step} - Thought/Answer]: "
+                    f"{block.text}"
                 )
 
-        if mesaj.stop_reason != "tool_use":
+        if response.stop_reason != "tool_use":
             break
 
-        tool_sonuclari = []
+        tool_results = []
 
-        for blok in mesaj.content:
-            if blok.type != "tool_use":
+        for block in response.content:
+            if block.type != "tool_use":
                 continue
 
-            fonksiyon = ARAC_FONKSIYONLARI.get(blok.name)
+            function = tool_functions.get(block.name)
 
             print(
-                f"[Adım {adim} - Eylem]: "
-                f"{blok.name}({blok.input})"
+                f"[Step {step} - Action]: "
+                f"{block.name}({block.input})"
             )
 
-            if fonksiyon is None:
-                sonuc = f"HATA: '{blok.name}' adında bir araç yok"
+            if function is None:
+                result = f"ERROR: There is no tool named '{block.name}'"
 
             else:
                 try:
-                    sonuc = fonksiyon(**blok.input)
+                    result = function(**block.input)
 
                 except Exception as e:
-                    sonuc = f"HATA: {str(e)}"
+                    result = f"ERROR: {str(e)}"
 
             print(
-                f"[Adım {adim} - Gözlem]: {sonuc}"
+                f"[Step {step} - Observation]: {result}"
             )
 
-            tool_sonuclari.append(
+            tool_results.append(
                 {
                     "type": "tool_result",
-                    "tool_use_id": blok.id,
-                    "content": str(sonuc)
+                    "tool_use_id": block.id,
+                    "content": str(result)
                 }
             )
 
-        mesajlar.append(
+        messages.append(
             {
                 "role": "user",
-                "content": tool_sonuclari
+                "content": tool_results
             }
         )
 
-    if adim >= max_adim:
-        print("\n⚠️ Maksimum adım sayısına ulaşıldı.")
+    if step >= max_steps:
+        print("\n⚠️ Reached the maximum number of steps.")
 
 
 if __name__ == "__main__":
-    react_agent_calistir(
-        "Ankara'da hava nasıl, ve eğer sıcaklık 20'den düşükse bunu 3 ile çarp, değilse 5 ile çarp."
+    run_react_agent(
+        "What is the weather like in Ankara? If the temperature is below 20, multiply it by 3, otherwise multiply it by 5."
     )

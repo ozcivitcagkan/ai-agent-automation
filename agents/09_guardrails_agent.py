@@ -1,4 +1,3 @@
-import os
 from typing import Annotated, TypedDict, Literal
 
 from dotenv import load_dotenv
@@ -16,11 +15,11 @@ model = ChatAnthropic(model=MODEL)
 
 
 
-YASAKLI_KELIMELER = [
-    "parola",
-    "kredi kartı",
-    "şifre",
-    "sosyal güvenlik",
+BANNED_WORDS = [
+    "password",
+    "credit card",
+    "passcode",
+    "social security",
     "api key",
     "token",
     "access token",
@@ -28,509 +27,509 @@ YASAKLI_KELIMELER = [
 ]
 
 
-def input_guvenli_mi(mesaj: str) -> tuple[bool, str]:
+def is_input_safe(message: str) -> tuple[bool, str]:
 
-    mesaj_kucuk = mesaj.lower()
+    message_lower = message.lower()
 
-    for kelime in YASAKLI_KELIMELER:
-        if kelime in mesaj_kucuk:
-            return False, f"Bu istek '{kelime}' içerdiği için işlenemiyor."
+    for word in BANNED_WORDS:
+        if word in message_lower:
+            return False, f"This request cannot be processed because it contains '{word}'."
 
-    if len(mesaj) > 2000:
-        return False, "Mesaj çok uzun, lütfen kısaltın."
+    if len(message) > 2000:
+        return False, "The message is too long, please shorten it."
 
     return True, ""
 
 
-def output_guvenli_mi(cevap: str) -> tuple[bool, str]:
+def is_output_safe(answer: str) -> tuple[bool, str]:
 
-    if not cevap or not cevap.strip():
-        return False, "Boş cevap üretildi."
+    if not answer or not answer.strip():
+        return False, "An empty answer was produced."
 
-    if len(cevap) > 5000:
-        return False, "Cevap beklenenden çok uzun."
+    if len(answer) > 5000:
+        return False, "The answer is longer than expected."
 
-    hassas_kaliplar = [
+    sensitive_patterns = [
         "api_key",
         "sk-ant-",
         "password="
     ]
 
-    for kalip in hassas_kaliplar:
-        if kalip in cevap.lower():
-            return False, "Cevapta hassas bilgi tespit edildi."
+    for pattern in sensitive_patterns:
+        if pattern in answer.lower():
+            return False, "Sensitive information was found in the answer."
 
     return True, ""
 
 
 
-class MaliyetTakipcisi:
+class CostTracker:
 
-    def __init__(self, limit_dolar=0.10):
+    def __init__(self, limit_usd=0.10):
 
-        self.toplam_maliyet = 0.0
-        self.limit = limit_dolar
+        self.total_cost = 0.0
+        self.limit = limit_usd
 
-    def ekle(self, input_token, output_token):
+    def add(self, input_tokens, output_tokens):
 
-        maliyet = (
-            (input_token / 1_000_000 * 3)
+        cost = (
+            (input_tokens / 1_000_000 * 3)
             +
-            (output_token / 1_000_000 * 15)
+            (output_tokens / 1_000_000 * 15)
         )
 
-        self.toplam_maliyet += maliyet
+        self.total_cost += cost
 
         print(
-            f"[MALIYET] Bu çağrı: ${maliyet:.6f} | "
-            f"Toplam: ${self.toplam_maliyet:.6f}"
+            f"[COST] This call: ${cost:.6f} | "
+            f"Total: ${self.total_cost:.6f}"
         )
 
-        if self.toplam_maliyet > self.limit:
+        if self.total_cost > self.limit:
             raise RuntimeError(
-                f"Maliyet limiti aşıldı: "
-                f"${self.toplam_maliyet:.6f}"
+                f"Cost limit exceeded: "
+                f"${self.total_cost:.6f}"
             )
 
-        return self.toplam_maliyet
+        return self.total_cost
 
-takipci = MaliyetTakipcisi(limit_dolar=0.1)
+tracker = CostTracker(limit_usd=0.1)
 
 
 
-def model_cagir(girdi):
+def call_model(model_input):
 
-    mesaj = model.invoke(girdi)
+    message = model.invoke(model_input)
 
-    input_token = mesaj.usage_metadata.get(
+    input_tokens = message.usage_metadata.get(
         "input_tokens",
         0
     )
 
-    output_token = mesaj.usage_metadata.get(
+    output_tokens = message.usage_metadata.get(
         "output_tokens",
         0
     )
 
-    takipci.ekle(
-        input_token,
-        output_token
+    tracker.add(
+        input_tokens,
+        output_tokens
     )
 
-    return mesaj
+    return message
 
 
 
 class AgentState(TypedDict):
 
     messages: Annotated[list, add_messages]
-    sonraki: str
-    asama: str
+    next: str
+    stage: str
 
 
 
 def supervisor_node(state: AgentState):
 
-    kullanici_istegi = state["messages"][0].content
-    asama = state["asama"]
+    user_request = state["messages"][0].content
+    stage = state["stage"]
 
-    karar_prompt = f"""
-Kullanıcının isteği:
+    decision_prompt = f"""
+The user's request:
 
-"{kullanici_istegi}"
+"{user_request}"
 
-Mevcut aşama:
+Current stage:
 
-"{asama}"
+"{stage}"
 
-Görevi aşağıdaki kurallara göre yönlendir:
+Route the task using the rules below:
 
-- Matematik işlemi gerekiyorsa "hesaplayici" seç.
-- Bilgi veya veri araştırılması gerekiyorsa "arastirmaci" seç.
-- Araştırma veya hesaplama tamamlandıysa ve sonuç
-  bir metne, paragrafa, rapora veya özete dönüştürülecekse
-  "yazar" seç.
-- Kullanıcı bir dosyanın silinmesini istiyorsa "veri_sil" seç.
-- İş tamamlandıysa "bitir" seç.
-- Kullanıcı sadece selamlaşıyorsa "bitir" seç.
+- If a math operation is needed, choose "calculator".
+- If information or data needs to be researched, choose "researcher".
+- If research or calculation is done and the result
+  should be turned into a text, paragraph, report or summary,
+  choose "writer".
+- If the user wants a file deleted, choose "delete_data".
+- If the work is done, choose "finish".
+- If the user is only greeting, choose "finish".
 
-Sadece şu kelimelerden birini yaz:
+Write only one of these words:
 
-arastirmaci
-yazar
-hesaplayici
-veri_sil
-bitir
+researcher
+writer
+calculator
+delete_data
+finish
 """
 
-    cevap = model_cagir(karar_prompt)
+    answer = call_model(decision_prompt)
 
-    karar = cevap.content.strip().lower()
+    decision = answer.content.strip().lower()
 
-    print(f"\n[SUPERVISOR] Karar: {karar}")
+    print(f"\n[SUPERVISOR] Decision: {decision}")
 
     return {
-        "sonraki": karar
+        "next": decision
     }
 
 
 
-def arastirmaci_node(state: AgentState):
+def researcher_node(state: AgentState):
 
-    print("[ARASTIRMACI] Çalışıyor...")
+    print("[RESEARCHER] Working...")
 
-    kullanici_istegi = state["messages"][0].content
+    user_request = state["messages"][0].content
 
-    cevap = model_cagir([
+    answer = call_model([
         {
             "role": "system",
             "content": (
-                "Sen bir araştırmacısın. "
-                "Kullanıcının istediği konu hakkında "
-                "kısa ve net araştırma notları hazırla. "
-                "Paragraf veya son kullanıcı metni yazma."
+                "You are a researcher. "
+                "Prepare short and clear research notes "
+                "on the topic the user asked about. "
+                "Do not write paragraphs or end-user text."
             )
         },
         {
             "role": "user",
-            "content": kullanici_istegi
+            "content": user_request
         }
     ])
 
-    print("[ARASTIRMACI] İş tamamlandı.")
+    print("[RESEARCHER] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "arastirma_tamam"
+        "messages": [answer],
+        "stage": "research_done"
     }
 
 
 
-def hesaplayici_node(state: AgentState):
+def calculator_node(state: AgentState):
 
-    print("[HESAPLAYICI] Çalışıyor...")
+    print("[CALCULATOR] Working...")
 
-    kullanici_istegi = state["messages"][0].content
+    user_request = state["messages"][0].content
 
-    cevap = model_cagir([
+    answer = call_model([
         {
             "role": "system",
             "content": (
-                "Sen bir hesaplayıcısın. "
-                "Matematiksel işlemi yap ve "
-                "sadece sonucu ver."
+                "You are a calculator. "
+                "Do the math operation and "
+                "give only the result."
             )
         },
         {
             "role": "user",
-            "content": kullanici_istegi
+            "content": user_request
         }
     ])
 
-    print("[HESAPLAYICI] İş tamamlandı.")
+    print("[CALCULATOR] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "hesaplama_tamam"
+        "messages": [answer],
+        "stage": "calculation_done"
     }
 
 
-def yazar_node(state: AgentState):
+def writer_node(state: AgentState):
 
-    print("[YAZAR] Çalışıyor...")
+    print("[WRITER] Working...")
 
-    kullanici_istegi = state["messages"][0].content
-    uzman_sonucu = state["messages"][-1].content
+    user_request = state["messages"][0].content
+    expert_result = state["messages"][-1].content
 
-    cevap = model_cagir([
+    answer = call_model([
         {
             "role": "system",
             "content": (
-                "Sen bir yazarsın. "
-                "Uzman tarafından verilen bilgileri kullanarak "
-                "akıcı ve kısa bir metin oluştur. "
-                "Yeni bilgi uydurma."
+                "You are a writer. "
+                "Using the information given by the expert, "
+                "write a short text that reads well. "
+                "Do not make up new information."
             )
         },
         {
             "role": "user",
             "content": f"""
-Kullanıcının isteği:
+The user's request:
 
-{kullanici_istegi}
+{user_request}
 
-Uzmanın verdiği sonuç:
+The result given by the expert:
 
-{uzman_sonucu}
+{expert_result}
 
-Bu bilgileri kullanarak kullanıcıya uygun bir metin oluştur.
+Using this information, write a text that fits the user's request.
 """
         }
     ])
 
-    print("[YAZAR] İş tamamlandı.")
+    print("[WRITER] Task done.")
 
     return {
-        "messages": [cevap],
-        "asama": "yazim_tamam"
+        "messages": [answer],
+        "stage": "writing_done"
     }
 
 
 
-def veri_sil(dosya_adi: str):
+def delete_data(file_name: str):
 
     print(
-        f"[SAHTE TOOL] '{dosya_adi}' siliniyor..."
+        f"[FAKE TOOL] Deleting '{file_name}'..."
     )
 
     return (
-        f"[SIMULASYON] '{dosya_adi}' "
-        "başarıyla silindi."
+        f"[SIMULATION] '{file_name}' "
+        "was deleted successfully."
     )
 
 
 
-def veri_sil_node(state: AgentState):
+def delete_data_node(state: AgentState):
 
-    print("[VERI_SIL] Riskli işlem tespit edildi.")
+    print("[DELETE_DATA] Risky operation detected.")
 
-    kullanici_istegi = state["messages"][0].content
+    user_request = state["messages"][0].content
 
-    dosya_adi = "test.txt"
+    file_name = "test.txt"
 
     print(
-        f"\nAgent şu işlemi yapmak istiyor:"
-        f"\n'{kullanici_istegi}'"
+        f"\nThe agent wants to do this:"
+        f"\n'{user_request}'"
     )
 
     print(
-        f"\nSilinecek dosya: {dosya_adi}"
+        f"\nFile to delete: {file_name}"
     )
 
-    onay = input(
-        "Bu işlemi onaylıyor musun? (e/h): "
+    approval = input(
+        "Do you approve this operation? (y/n): "
     ).strip().lower()
 
-    if onay != "e":
+    if approval != "y":
 
-        print("[VERI_SIL] İşlem reddedildi.")
+        print("[DELETE_DATA] Operation rejected.")
 
         return {
             "messages": [
                 {
                     "role": "assistant",
                     "content": (
-                        "Silme işlemi kullanıcı tarafından "
-                        "onaylanmadı."
+                        "The delete operation was not "
+                        "approved by the user."
                     )
                 }
             ],
-            "asama": "silme_reddedildi"
+            "stage": "delete_rejected"
         }
 
-    sonuc = veri_sil(dosya_adi)
+    result = delete_data(file_name)
 
-    print("[VERI_SIL] İşlem tamamlandı.")
+    print("[DELETE_DATA] Operation done.")
 
     return {
         "messages": [
             {
                 "role": "assistant",
-                "content": sonuc
+                "content": result
             }
         ],
-        "asama": "silme_tamam"
+        "stage": "delete_done"
     }
 
 
 
-def yonlendir(
+def route(
     state: AgentState
 ) -> Literal[
-    "arastirmaci",
-    "yazar",
-    "hesaplayici",
-    "veri_sil",
+    "researcher",
+    "writer",
+    "calculator",
+    "delete_data",
     "__end__"
 ]:
 
-    karar = state["sonraki"]
+    decision = state["next"]
 
-    if "arastirmaci" in karar:
-        return "arastirmaci"
+    if "researcher" in decision:
+        return "researcher"
 
-    elif "yazar" in karar:
-        return "yazar"
+    elif "writer" in decision:
+        return "writer"
 
-    elif "hesaplayici" in karar:
-        return "hesaplayici"
+    elif "calculator" in decision:
+        return "calculator"
 
-    elif "veri_sil" in karar:
-        return "veri_sil"
+    elif "delete_data" in decision:
+        return "delete_data"
 
     else:
         return END
 
 
 
-graf = StateGraph(AgentState)
+graph = StateGraph(AgentState)
 
 
-graf.add_node(
+graph.add_node(
     "supervisor",
     supervisor_node
 )
 
-graf.add_node(
-    "arastirmaci",
-    arastirmaci_node
+graph.add_node(
+    "researcher",
+    researcher_node
 )
 
-graf.add_node(
-    "yazar",
-    yazar_node
+graph.add_node(
+    "writer",
+    writer_node
 )
 
-graf.add_node(
-    "hesaplayici",
-    hesaplayici_node
+graph.add_node(
+    "calculator",
+    calculator_node
 )
 
-graf.add_node(
-    "veri_sil",
-    veri_sil_node
+graph.add_node(
+    "delete_data",
+    delete_data_node
 )
 
 
-graf.set_entry_point("supervisor")
+graph.set_entry_point("supervisor")
 
 
-graf.add_conditional_edges(
+graph.add_conditional_edges(
     "supervisor",
-    yonlendir,
+    route,
     {
-        "arastirmaci": "arastirmaci",
-        "yazar": "yazar",
-        "hesaplayici": "hesaplayici",
-        "veri_sil": "veri_sil",
+        "researcher": "researcher",
+        "writer": "writer",
+        "calculator": "calculator",
+        "delete_data": "delete_data",
         END: END
     }
 )
 
 
-graf.add_edge(
-    "arastirmaci",
+graph.add_edge(
+    "researcher",
     "supervisor"
 )
 
-graf.add_edge(
-    "hesaplayici",
+graph.add_edge(
+    "calculator",
     "supervisor"
 )
 
-graf.add_edge(
-    "yazar",
+graph.add_edge(
+    "writer",
     "supervisor"
 )
 
-graf.add_edge(
-    "veri_sil",
+graph.add_edge(
+    "delete_data",
     "supervisor"
 )
 
 
-app = graf.compile()
+app = graph.compile()
 
 
 
 
-def sistemi_calistir(kullanici_mesaji: str):
+def run_system(user_message: str):
 
     # 1. INPUT GUARDRAIL
 
-    guvenli, sebep = input_guvenli_mi(
-        kullanici_mesaji
+    safe, reason = is_input_safe(
+        user_message
     )
 
-    if not guvenli:
+    if not safe:
 
-        print("\n[INPUT GUARDRAIL] İstek reddedildi.")
-        print(f"Sebep: {sebep}")
+        print("\n[INPUT GUARDRAIL] Request rejected.")
+        print(f"Reason: {reason}")
 
         return
 
 
-    # 2. AGENT SISTEMI
+    # 2. AGENT SYSTEM
 
     try:
 
-        sonuc = app.invoke(
+        result = app.invoke(
             {
                 "messages": [
                     {
                         "role": "user",
-                        "content": kullanici_mesaji
+                        "content": user_message
                     }
                 ],
-                "sonraki": "",
-                "asama": "baslangic"
+                "next": "",
+                "stage": "start"
             },
             config={
                 "recursion_limit": 10
             }
         )
 
-    except RuntimeError as hata:
+    except RuntimeError as error:
 
         print("\n[RESOURCE GUARDRAIL]")
-        print(hata)
+        print(error)
 
         return
 
 
     # 3. OUTPUT GUARDRAIL
 
-    son_mesaj = sonuc["messages"][-1]
+    last_message = result["messages"][-1]
 
-    if hasattr(son_mesaj, "content"):
-        son_cevap = son_mesaj.content
+    if hasattr(last_message, "content"):
+        final_answer = last_message.content
     else:
-        son_cevap = str(son_mesaj)
+        final_answer = str(last_message)
 
 
-    guvenli, sebep = output_guvenli_mi(
-        son_cevap
+    safe, reason = is_output_safe(
+        final_answer
     )
 
 
-    if not guvenli:
+    if not safe:
 
         print(
             "\n[OUTPUT GUARDRAIL] "
-            "Cevap kullanıcıya gösterilmedi."
+            "The answer was not shown to the user."
         )
 
         print(
-            f"Sebep: {sebep}"
+            f"Reason: {reason}"
         )
 
         return
 
 
-    print("\n===== SON CEVAP =====")
-    print(son_cevap)
+    print("\n===== FINAL ANSWER =====")
+    print(final_answer)
 
     print(
-        f"\nToplam maliyet: "
-        f"${takipci.toplam_maliyet:.6f}"
+        f"\nTotal cost: "
+        f"${tracker.total_cost:.6f}"
     )
 
 
-# TESTELR
+# TESTS
 
-KULLANICI_MESAJI = (
-    "connection string bilgisini kaydet"
+USER_MESSAGE = (
+    "save the connection string details"
 )
 
-sistemi_calistir(KULLANICI_MESAJI)
+run_system(USER_MESSAGE)
 

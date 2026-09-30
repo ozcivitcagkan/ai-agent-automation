@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import voyageai
 from dotenv import load_dotenv
@@ -7,136 +6,136 @@ load_dotenv()
 
 vo = voyageai.Client()
 
-def sabit_boyutlu_chunk(metin, chunk_boyutu=200):
-    chunklar = []
+def fixed_size_chunk(text, chunk_size=200):
+    chunks = []
 
-    for i in range(0, len(metin), chunk_boyutu):
-        chunklar.append(metin[i:i + chunk_boyutu])
+    for i in range(0, len(text), chunk_size):
+        chunks.append(text[i:i + chunk_size])
 
-    return chunklar
+    return chunks
 
 
-def overlap_chunk(metin, chunk_boyutu=200, overlap=30):
-    chunklar = []
-    baslangic = 0
+def overlap_chunk(text, chunk_size=200, overlap=30):
+    chunks = []
+    start = 0
 
-    while baslangic < len(metin):
-        bitis = baslangic + chunk_boyutu
+    while start < len(text):
+        end = start + chunk_size
 
-        chunklar.append(
-            metin[baslangic:bitis]
+        chunks.append(
+            text[start:end]
         )
 
-        baslangic += chunk_boyutu - overlap
+        start += chunk_size - overlap
 
-    return chunklar
+    return chunks
 
 
-def paragraf_chunk(metin, max_boyut=500):
-    paragraflar = metin.split("\n\n")
+def paragraph_chunk(text, max_size=500):
+    paragraphs = text.split("\n\n")
 
-    chunklar = []
-    mevcut_chunk = ""
+    chunks = []
+    current_chunk = ""
 
-    for paragraf in paragraflar:
+    for paragraph in paragraphs:
 
-        if len(mevcut_chunk) + len(paragraf) <= max_boyut:
-            mevcut_chunk += paragraf + "\n\n"
+        if len(current_chunk) + len(paragraph) <= max_size:
+            current_chunk += paragraph + "\n\n"
 
         else:
-            if mevcut_chunk:
-                chunklar.append(mevcut_chunk.strip())
+            if current_chunk:
+                chunks.append(current_chunk.strip())
 
-            mevcut_chunk = paragraf + "\n\n"
+            current_chunk = paragraph + "\n\n"
 
-    if mevcut_chunk:
-        chunklar.append(
-            mevcut_chunk.strip()
+    if current_chunk:
+        chunks.append(
+            current_chunk.strip()
         )
 
-    return chunklar
+    return chunks
 
 
-metin = """Şirketimiz çalışanlarına yılda 14 gün yıllık izin verir.
-İzin talepleri yöneticinin onayına sunulur.
-Çalışanlar izin başvurularını şirketin insan kaynakları sistemi üzerinden yapabilir.
+text = """Our company gives employees 14 days of annual leave per year.
+Leave requests are sent to the manager for approval.
+Employees can apply for leave through the company's human resources system.
 
-Uzaktan çalışanlar VPN kullanmalıdır.
-Şirket bilgisayarları düzenli olarak güncellenir.
-Çalışanların şirket sistemlerine bağlanırken güvenli bağlantı kullanması zorunludur.
+Remote employees must use a VPN.
+Company computers are updated regularly.
+Employees must use a secure connection when they connect to company systems.
 
-Çalışanlara her ayın sonunda maaş ödemesi yapılır.
-Maaş bilgileri çalışanlara özel tutulur.
-Maaş bordroları çalışanların kişisel hesapları üzerinden görüntülenebilir.
+Salaries are paid at the end of each month.
+Salary information is kept private for each employee.
+Payslips can be viewed through each employee's personal account.
 
-Şirket çalışanlarının güvenlik eğitimlerine katılması zorunludur.
-Yeni çalışanlara ilk hafta içerisinde şirket politikaları anlatılır.
-Çalışanlar şirket kaynaklarını yalnızca iş amaçlı kullanmalıdır.
+All employees must attend security training.
+New employees learn the company policies during their first week.
+Employees must use company resources for work purposes only.
 
-Yıllık performans değerlendirmeleri her yılın sonunda gerçekleştirilir.
-Yöneticiler çalışanlarla performans görüşmeleri yapar.
-Performans sonuçları çalışanların gelişim planlarında kullanılır."""
+Annual performance reviews take place at the end of each year.
+Managers hold performance meetings with employees.
+Performance results are used in employee development plans."""
 
 
 
-chunklar = sabit_boyutlu_chunk(
-    metin,
-    chunk_boyutu=200
+chunks = fixed_size_chunk(
+    text,
+    chunk_size=200
 )
 
-for i, chunk in enumerate(chunklar):
+for i, chunk in enumerate(chunks):
     print(f"\nChunk {i}:")
     print(chunk)
 
 
-chunklar = overlap_chunk(
-    metin,
-    chunk_boyutu=200,
+chunks = overlap_chunk(
+    text,
+    chunk_size=200,
     overlap=30
 )
 
-for i, chunk in enumerate(chunklar):
+for i, chunk in enumerate(chunks):
     print(f"\nChunk {i}:")
     print(chunk)
 
 
 
-chunklar = paragraf_chunk(
-    metin,
-    max_boyut=200
+chunks = paragraph_chunk(
+    text,
+    max_size=200
 )
 
-for i, chunk in enumerate(chunklar):
+for i, chunk in enumerate(chunks):
     print(f"\nChunk {i}:")
     print(chunk)
 
 
-chunklar = paragraf_chunk(
-    metin,
-    max_boyut=250
+chunks = paragraph_chunk(
+    text,
+    max_size=250
 )
 
-sonuc_chunk = vo.embed(
-    chunklar,
+chunk_result = vo.embed(
+    chunks,
     model="voyage-4",
     input_type="document"
 )
 
-chunk_embeddingleri = sonuc_chunk.embeddings
+chunk_embeddings = chunk_result.embeddings
 
 
-soru = "Yıllık izin kaç gün?"
+question = "How many days of annual leave are there?"
 
-sonuc_soru = vo.embed(
-    [soru],
+question_result = vo.embed(
+    [question],
     model="voyage-4",
     input_type="query"
 )
 
-soru_vektor = sonuc_soru.embeddings[0]
+question_vector = question_result.embeddings[0]
 
 
-def kosinus_benzerlik(a, b):
+def cosine_similarity(a, b):
     a = np.array(a)
     b = np.array(b)
 
@@ -145,44 +144,44 @@ def kosinus_benzerlik(a, b):
     )
 
 
-sonuclar = []
+results = []
 
-for i, chunk_vektoru in enumerate(chunk_embeddingleri):
+for i, chunk_vector in enumerate(chunk_embeddings):
 
-    skor = kosinus_benzerlik(
-        soru_vektor,
-        chunk_vektoru
+    score = cosine_similarity(
+        question_vector,
+        chunk_vector
     )
 
-    sonuclar.append(
-        (skor, chunklar[i])
+    results.append(
+        (score, chunks[i])
     )
 
 
-sonuclar.sort(reverse=True)
+results.sort(reverse=True)
 
 
-for skor, chunk in sonuclar:
-    print(f"\nSkor: {skor:.4f}")
+for score, chunk in results:
+    print(f"\nScore: {score:.4f}")
     print(chunk)
 
 
-chunklar_100 = paragraf_chunk(
-    metin,
-    max_boyut=100
+chunks_100 = paragraph_chunk(
+    text,
+    max_size=100
 )
 
-chunklar_1000 = paragraf_chunk(
-    metin,
-    max_boyut=1000
-)
-
-print(
-    "100 karakterlik chunk sayısı:",
-    len(chunklar_100)
+chunks_1000 = paragraph_chunk(
+    text,
+    max_size=1000
 )
 
 print(
-    "1000 karakterlik chunk sayısı:",
-    len(chunklar_1000)
+    "Number of 100-character chunks:",
+    len(chunks_100)
+)
+
+print(
+    "Number of 1000-character chunks:",
+    len(chunks_1000)
 )

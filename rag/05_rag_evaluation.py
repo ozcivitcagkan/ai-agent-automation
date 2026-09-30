@@ -28,110 +28,110 @@ client_db = chromadb.PersistentClient(
     path="./chroma_db"
 )
 
-koleksiyon = client_db.get_or_create_collection(
-    name="sirket_politikalari"
+collection = client_db.get_or_create_collection(
+    name="company_policies"
 )
 
 
-def voyage_embed_query(metin):
-    sonuc = vo.embed(
-        [metin],
+def voyage_embed_query(text):
+    result = vo.embed(
+        [text],
         model="voyage-4",
         input_type="query"
     )
 
-    return sonuc.embeddings[0]
+    return result.embeddings[0]
 
 
 
-def ilgili_chunklari_bul_detayli(soru, n=3):
+def find_relevant_chunks_detailed(question, n=3):
 
-    soru_vektor = voyage_embed_query(soru)
+    question_vector = voyage_embed_query(question)
 
-    sonuclar = koleksiyon.query(
-        query_embeddings=[soru_vektor],
+    results = collection.query(
+        query_embeddings=[question_vector],
         n_results=n
     )
 
-    detayli = []
+    detailed = []
 
-    for i, dokuman in enumerate(
-        sonuclar["documents"][0]
+    for i, document in enumerate(
+        results["documents"][0]
     ):
 
-        detayli.append(
+        detailed.append(
             {
-                "metin": dokuman,
-                "kategori": sonuclar["metadatas"][0][i]["kategori"]
+                "text": document,
+                "category": results["metadatas"][0][i]["category"]
             }
         )
 
-    return detayli
+    return detailed
 
 
-test_sorulari = [
+test_questions = [
     {
-        "soru": "Yıllık izin kaç gün?",
-        "beklenen_kategori": "izin"
+        "question": "How many days of annual leave are there?",
+        "expected_category": "leave"
     },
     {
-        "soru": "Maaş ne zaman ödenir?",
-        "beklenen_kategori": "maas"
+        "question": "When are salaries paid?",
+        "expected_category": "salary"
     },
     {
-        "soru": "VPN kullanmak zorunlu mu?",
-        "beklenen_kategori": "vpn"
+        "question": "Is using a VPN required?",
+        "expected_category": "vpn"
     },
     {
-        "soru": "Performans değerlendirmesi ne zaman yapılır?",
-        "beklenen_kategori": "performans"
+        "question": "When do performance reviews take place?",
+        "expected_category": "performance"
     },
     {
-        "soru": "Çalışanların güvenlik eğitimi zorunlu mu?",
-        "beklenen_kategori": "guvenlik"
+        "question": "Is security training required for employees?",
+        "expected_category": "security"
     }
 ]
 
 
 if RUN_TASK_A:
 
-    dogru_sayisi = 0
+    correct_count = 0
 
-    for test in test_sorulari:
+    for test in test_questions:
 
-        detayli = ilgili_chunklari_bul_detayli(
-            test["soru"],
+        detailed = find_relevant_chunks_detailed(
+            test["question"],
             n=1
         )
 
-        bulunan_kategori = detayli[0]["kategori"]
+        found_category = detailed[0]["category"]
 
-        dogru_mu = (
-            bulunan_kategori
-            == test["beklenen_kategori"]
+        is_correct = (
+            found_category
+            == test["expected_category"]
         )
 
-        if dogru_mu:
-            dogru_sayisi += 1
+        if is_correct:
+            correct_count += 1
 
         print(
-            f"{'✅' if dogru_mu else '❌'} "
-            f"{test['soru']}"
+            f"{'✅' if is_correct else '❌'} "
+            f"{test['question']}"
         )
 
         print(
-            f"   Beklenen: {test['beklenen_kategori']} "
-            f"| Bulunan: {bulunan_kategori}"
+            f"   Expected: {test['expected_category']} "
+            f"| Found: {found_category}"
         )
 
     print(
-        f"\nDoğruluk: "
-        f"{dogru_sayisi}/{len(test_sorulari)}"
+        f"\nAccuracy: "
+        f"{correct_count}/{len(test_questions)}"
     )
 
     print(
-        f"Oran: "
-        f"{dogru_sayisi / len(test_sorulari) * 100:.1f}%"
+        f"Rate: "
+        f"{correct_count / len(test_questions) * 100:.1f}%"
     )
 
 
@@ -141,79 +141,79 @@ if RUN_TASK_B:
 
     for k in [1, 2, 3]:
 
-        dogru_sayisi = 0
+        correct_count = 0
 
-        for test in test_sorulari:
+        for test in test_questions:
 
-            detayli = ilgili_chunklari_bul_detayli(
-                test["soru"],
+            detailed = find_relevant_chunks_detailed(
+                test["question"],
                 n=k
             )
 
-            kategoriler = [
-                d["kategori"]
-                for d in detayli
+            categories = [
+                d["category"]
+                for d in detailed
             ]
 
-            dogru_mu = (
-                test["beklenen_kategori"]
-                in kategoriler
+            is_correct = (
+                test["expected_category"]
+                in categories
             )
 
-            if dogru_mu:
-                dogru_sayisi += 1
+            if is_correct:
+                correct_count += 1
 
-        oran = (
-            dogru_sayisi
-            / len(test_sorulari)
+        rate = (
+            correct_count
+            / len(test_questions)
             * 100
         )
 
         print(
             f"precision@{k}: "
-            f"{dogru_sayisi}/{len(test_sorulari)} "
-            f"({oran:.1f}%)"
+            f"{correct_count}/{len(test_questions)} "
+            f"({rate:.1f}%)"
         )
 
 
 
-def rag_prompt_olustur(soru, chunklar):
+def build_rag_prompt(question, chunks):
 
-    baglam = "\n\n".join(chunklar)
+    context = "\n\n".join(chunks)
 
-    prompt = f"""Aşağıdaki bağlamı kullanarak soruyu cevapla.
+    prompt = f"""Answer the question using the context below.
 
-Sadece bağlamdaki bilgiyi kullan.
-Bağlamda cevap yoksa "Bu bilgi elimde yok" de.
-Hiçbir şey uydurma.
-Kullanıcı yanlış bir varsayım yapıyorsa,
-bağlamdaki doğru bilgiyle düzelt.
+Use only the information in the context.
+If the answer is not in the context, say "I don't have this information".
+Do not make anything up.
+If the user makes a wrong assumption,
+correct it with the right information from the context.
 
-Bağlam:
-{baglam}
+Context:
+{context}
 
-Soru:
-{soru}
+Question:
+{question}
 
-Cevap:
+Answer:
 """
 
     return prompt
 
 
 
-def generation_testi(
-    soru,
-    dogru_chunk,
-    beklenen_anahtar_kelime
+def generation_test(
+    question,
+    correct_chunk,
+    expected_keyword
 ):
 
-    prompt = rag_prompt_olustur(
-        soru,
-        [dogru_chunk]
+    prompt = build_rag_prompt(
+        question,
+        [correct_chunk]
     )
 
-    mesaj = client.messages.create(
+    message = client.messages.create(
         model=MODEL,
         max_tokens=300,
         messages=[
@@ -224,74 +224,74 @@ def generation_testi(
         ]
     )
 
-    cevap = mesaj.content[0].text
+    answer = message.content[0].text
 
-    basarili = (
-        beklenen_anahtar_kelime.lower()
-        in cevap.lower()
+    passed = (
+        expected_keyword.lower()
+        in answer.lower()
     )
 
     print(
-        f"{'✅' if basarili else '❌'} "
-        f"{soru}"
+        f"{'✅' if passed else '❌'} "
+        f"{question}"
     )
 
     print(
-        f"   Cevap: {cevap}"
+        f"   Answer: {answer}"
     )
 
-    return basarili
+    return passed
 
 
 if RUN_TASK_C:
 
 
-    generation_testi(
-        soru="Yıllık izin kaç gün?",
-        dogru_chunk=(
-            "Şirketimiz çalışanlarına "
-            "yılda 14 gün yıllık izin verir."
+    generation_test(
+        question="How many days of annual leave are there?",
+        correct_chunk=(
+            "Our company gives employees "
+            "14 days of annual leave per year."
         ),
-        beklenen_anahtar_kelime="14"
+        expected_keyword="14"
     )
 
-    generation_testi(
-        soru="Maaş ne zaman ödenir?",
-        dogru_chunk=(
-            "Çalışanlara her ayın sonunda "
-            "maaş ödemesi yapılır."
+    generation_test(
+        question="When are salaries paid?",
+        correct_chunk=(
+            "Salaries are paid at the end "
+            "of each month."
         ),
-        beklenen_anahtar_kelime="ay"
+        expected_keyword="month"
     )
 
-    generation_testi(
-        soru="Uzaktan çalışanlar için kural nedir?",
-        dogru_chunk=(
-            "Uzaktan çalışanlar VPN "
-            "kullanmalıdır."
+    generation_test(
+        question="What is the rule for remote employees?",
+        correct_chunk=(
+            "Remote employees must use "
+            "a VPN."
         ),
-        beklenen_anahtar_kelime="VPN"
+        expected_keyword="VPN"
     )
 
 
-def rag_sor(soru, n=3):
+def ask_rag(question, n=3):
 
-    detayli = ilgili_chunklari_bul_detayli(
-        soru,
+    detailed = find_relevant_chunks_detailed(
+        question,
         n=n
     )
 
-    chunklar = [
-        d["metin"]
-        for d in detayli
+    chunks = [
+        d["text"]
+        for d in detailed
     ]
 
-    prompt = rag_prompt_olustur(
-        soru,
-        chunklar
+    prompt = build_rag_prompt(
+        question,
+        chunks
     )
 
-    mesaj = client.messages.create(
+    message = client.messages.create(
         model=MODEL,
         max_tokens=300,
         messages=[
@@ -302,152 +302,152 @@ def rag_sor(soru, n=3):
         ]
     )
 
-    cevap = mesaj.content[0].text
+    answer = message.content[0].text
 
-    return cevap, chunklar
+    return answer, chunks
 
 
 
 if RUN_TASK_D:
 
 
-    uctan_uca_testleri = [
+    end_to_end_tests = [
         {
-            "soru": "Yıllık izin kaç gün?",
-            "beklenen": "14"
+            "question": "How many days of annual leave are there?",
+            "expected": "14"
         },
         {
-            "soru": "Maaş ne zaman ödenir?",
-            "beklenen": "ay"
+            "question": "When are salaries paid?",
+            "expected": "month"
         },
         {
-            "soru": "Uzaktan çalışanlar için kural nedir?",
-            "beklenen": "VPN"
+            "question": "What is the rule for remote employees?",
+            "expected": "VPN"
         },
         {
-            "soru": "Şirketin CEO'su kim?",
-            "beklenen": "elimde yok"
+            "question": "Who is the company's CEO?",
+            "expected": "don't have"
         },
         {
-            "soru": "Yıllık izin 30 gün mü?",
-            "beklenen": "14"
+            "question": "Is annual leave 30 days?",
+            "expected": "14"
         }
     ]
 
-    basarili_sayisi = 0
+    passed_count = 0
 
-    for test in uctan_uca_testleri:
+    for test in end_to_end_tests:
 
-        cevap, chunklar = rag_sor(
-            test["soru"],
+        answer, chunks = ask_rag(
+            test["question"],
             n=3
         )
 
-        basarili = (
-            test["beklenen"].lower()
-            in cevap.lower()
+        passed = (
+            test["expected"].lower()
+            in answer.lower()
         )
 
-        if basarili:
-            basarili_sayisi += 1
+        if passed:
+            passed_count += 1
 
         print(
-            f"\n{'✅' if basarili else '❌'} "
-            f"{test['soru']}"
+            f"\n{'✅' if passed else '❌'} "
+            f"{test['question']}"
         )
 
         print(
-            f"Cevap: {cevap}"
+            f"Answer: {answer}"
         )
 
-    oran = (
-        basarili_sayisi
-        / len(uctan_uca_testleri)
+    rate = (
+        passed_count
+        / len(end_to_end_tests)
         * 100
     )
 
     print(
-        f"\nToplam başarı: "
-        f"{basarili_sayisi}/"
-        f"{len(uctan_uca_testleri)}"
+        f"\nTotal passed: "
+        f"{passed_count}/"
+        f"{len(end_to_end_tests)}"
     )
 
     print(
-        f"Başarı oranı: {oran:.1f}%"
+        f"Pass rate: {rate:.1f}%"
     )
 
 
 
 
-def paragraf_chunk(metin, max_boyut=500):
+def paragraph_chunk(text, max_size=500):
 
-    paragraflar = metin.split("\n\n")
+    paragraphs = text.split("\n\n")
 
-    chunklar = []
-    mevcut_chunk = ""
+    chunks = []
+    current_chunk = ""
 
-    for paragraf in paragraflar:
+    for paragraph in paragraphs:
 
         if (
-            len(mevcut_chunk)
-            + len(paragraf)
-            <= max_boyut
+            len(current_chunk)
+            + len(paragraph)
+            <= max_size
         ):
 
-            mevcut_chunk += (
-                paragraf + "\n\n"
+            current_chunk += (
+                paragraph + "\n\n"
             )
 
         else:
 
-            if mevcut_chunk:
-                chunklar.append(
-                    mevcut_chunk.strip()
+            if current_chunk:
+                chunks.append(
+                    current_chunk.strip()
                 )
 
-            mevcut_chunk = (
-                paragraf + "\n\n"
+            current_chunk = (
+                paragraph + "\n\n"
             )
 
-    if mevcut_chunk:
-        chunklar.append(
-            mevcut_chunk.strip()
+    if current_chunk:
+        chunks.append(
+            current_chunk.strip()
         )
 
-    return chunklar
+    return chunks
 
 
 
 if RUN_TASK_E:
-    
 
-    metin = """Şirketimiz çalışanlarına yılda 14 gün yıllık izin verir.
-İzin talepleri yöneticinin onayına sunulur.
 
-Uzaktan çalışanlar VPN kullanmalıdır.
-Şirket bilgisayarları düzenli olarak güncellenir.
+    text = """Our company gives employees 14 days of annual leave per year.
+Leave requests are sent to the manager for approval.
 
-Çalışanlara her ayın sonunda maaş ödemesi yapılır.
-Maaş bilgileri çalışanlara özel tutulur.
+Remote employees must use a VPN.
+Company computers are updated regularly.
 
-Şirket çalışanlarının güvenlik eğitimlerine katılması zorunludur.
-Yeni çalışanlara ilk hafta içerisinde şirket politikaları anlatılır.
+Salaries are paid at the end of each month.
+Salary information is kept private for each employee.
 
-Yıllık performans değerlendirmeleri her yılın sonunda gerçekleştirilir.
-Yöneticiler çalışanlarla performans görüşmeleri yapar."""
+All employees must attend security training.
+New employees learn the company policies during their first week.
 
-    kucuk_chunklar = paragraf_chunk(
-        metin,
-        max_boyut=50
+Annual performance reviews take place at the end of each year.
+Managers hold performance meetings with employees."""
+
+    small_chunks = paragraph_chunk(
+        text,
+        max_size=50
     )
 
     print(
-        "\nOluşan chunk sayısı:",
-        len(kucuk_chunklar)
+        "\nNumber of chunks created:",
+        len(small_chunks)
     )
 
     for i, chunk in enumerate(
-        kucuk_chunklar
+        small_chunks
     ):
 
         print(f"\nChunk {i}:")

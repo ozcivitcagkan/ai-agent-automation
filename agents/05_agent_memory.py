@@ -12,271 +12,271 @@ client = anthropic.Anthropic(
 
 MODEL = "claude-sonnet-4-6"
 
-HAFIZA_DOSYASI = "agent_hafiza.json"
+MEMORY_FILE = "agent_memory.json"
 
 
-def hesap_makinesi_calistir(islem, sayi1, sayi2):
+def run_calculator(operation, number1, number2):
     try:
-        if islem == "topla":
-            return sayi1 + sayi2
+        if operation == "add":
+            return number1 + number2
 
-        elif islem == "cikar":
-            return sayi1 - sayi2
+        elif operation == "subtract":
+            return number1 - number2
 
-        elif islem == "carp":
-            return sayi1 * sayi2
+        elif operation == "multiply":
+            return number1 * number2
 
-        elif islem == "bol":
-            if sayi2 == 0:
-                return "HATA: Sıfıra bölme yapılamaz"
+        elif operation == "divide":
+            if number2 == 0:
+                return "ERROR: Cannot divide by zero"
 
-            return sayi1 / sayi2
+            return number1 / number2
 
     except Exception as e:
-        return f"HATA: {str(e)}"
+        return f"ERROR: {str(e)}"
 
 
-def hava_durumu_calistir(sehir=None):
-    if not sehir:
-        return "HATA: Şehir belirtilmedi"
+def run_weather(city=None):
+    if not city:
+        return "ERROR: No city given"
 
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    return dummy_veri.get(
-        sehir,
-        f"HATA: '{sehir}' için veri yok. "
-        f"Mevcut: {list(dummy_veri.keys())}"
+    return dummy_data.get(
+        city,
+        f"ERROR: No data for '{city}'. "
+        f"Available: {list(dummy_data.keys())}"
     )
 
 
-def hafizayi_yukle():
-    if os.path.exists(HAFIZA_DOSYASI):
-        with open(HAFIZA_DOSYASI, "r", encoding="utf-8") as file:
+def load_memory():
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
 
     return {}
 
 
-def hafizayi_kaydet(hafiza):
-    with open(HAFIZA_DOSYASI, "w", encoding="utf-8") as file:
+def write_memory(memory):
+    with open(MEMORY_FILE, "w", encoding="utf-8") as file:
         json.dump(
-            hafiza,
+            memory,
             file,
             ensure_ascii=False,
             indent=2
         )
 
 
-def hafizaya_kaydet_calistir(anahtar, deger):
-    hafiza = hafizayi_yukle()
+def run_save_to_memory(key, value):
+    memory = load_memory()
 
-    hafiza[anahtar] = deger
+    memory[key] = value
 
-    hafizayi_kaydet(hafiza)
+    write_memory(memory)
 
-    return f"Kaydedildi: {anahtar} = {deger}"
+    return f"Saved: {key} = {value}"
 
 
-def hafizadan_oku_calistir(anahtar):
-    hafiza = hafizayi_yukle()
+def run_read_from_memory(key):
+    memory = load_memory()
 
-    return hafiza.get(
-        anahtar,
-        f"'{anahtar}' için kayıtlı bir bilgi yok"
+    return memory.get(
+        key,
+        f"No saved information for '{key}'"
     )
 
 
-ARAC_FONKSIYONLARI = {
-    "hesap_makinesi": hesap_makinesi_calistir,
-    "hava_durumu": hava_durumu_calistir,
-    "hafizaya_kaydet": hafizaya_kaydet_calistir,
-    "hafizadan_oku": hafizadan_oku_calistir
+tool_functions = {
+    "calculator": run_calculator,
+    "get_weather": run_weather,
+    "save_to_memory": run_save_to_memory,
+    "read_from_memory": run_read_from_memory
 }
 
 
-araclar = [
+tools = [
     {
-        "name": "hesap_makinesi",
-        "description": "İki sayı arasında toplama, çıkarma, çarpma veya bölme işlemi yapar.",
+        "name": "calculator",
+        "description": "Adds, subtracts, multiplies or divides two numbers.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "islem": {
+                "operation": {
                     "type": "string",
-                    "enum": ["topla", "cikar", "carp", "bol"]
+                    "enum": ["add", "subtract", "multiply", "divide"]
                 },
-                "sayi1": {
+                "number1": {
                     "type": "number"
                 },
-                "sayi2": {
+                "number2": {
                     "type": "number"
                 }
             },
-            "required": ["islem", "sayi1", "sayi2"]
+            "required": ["operation", "number1", "number2"]
         }
     },
     {
-        "name": "hava_durumu",
-        "description": "Bir şehrin hava durumunu verir.",
+        "name": "get_weather",
+        "description": "Returns the weather for a city.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "sehir": {
+                "city": {
                     "type": "string"
                 }
             },
-            "required": ["sehir"]
+            "required": ["city"]
         }
     },
     {
-        "name": "hafizaya_kaydet",
-        "description": "Kullanıcı hakkında ileride hatırlanması gereken kalıcı bir bilgiyi kaydeder. Örneğin isim veya tercih.",
+        "name": "save_to_memory",
+        "description": "Saves a lasting fact about the user that should be remembered later. For example a name or a preference.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "anahtar": {
+                "key": {
                     "type": "string",
-                    "description": "Bilginin kısa adı. Örneğin isim."
+                    "description": "A short name for the fact. For example name."
                 },
-                "deger": {
+                "value": {
                     "type": "string",
-                    "description": "Kaydedilecek bilgi."
+                    "description": "The information to save."
                 }
             },
-            "required": ["anahtar", "deger"]
+            "required": ["key", "value"]
         }
     },
     {
-        "name": "hafizadan_oku",
-        "description": "Daha önce kalıcı hafızaya kaydedilmiş bir bilgiyi okur.",
+        "name": "read_from_memory",
+        "description": "Reads a fact that was saved to long-term memory earlier.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "anahtar": {
+                "key": {
                     "type": "string"
                 }
             },
-            "required": ["anahtar"]
+            "required": ["key"]
         }
     }
 ]
 
 
-def react_system_prompt_olustur():
-    hafiza = hafizayi_yukle()
+def build_react_system_prompt():
+    memory = load_memory()
 
-    hafiza_metni = ""
+    memory_text = ""
 
-    if hafiza:
-        hafiza_metni = "\n\nKullanıcı hakkında bildiklerin:\n"
+    if memory:
+        memory_text = "\n\nWhat you know about the user:\n"
 
-        for anahtar, deger in hafiza.items():
-            hafiza_metni += f"- {anahtar}: {deger}\n"
+        for key, value in memory.items():
+            memory_text += f"- {key}: {value}\n"
 
-    return f"""Sen bir görevi adım adım çözen bir asistansın.
+    return f"""You are an assistant that solves a task step by step.
 
-Her adımda önce ne yapman gerektiğini kısaca açıkla,
-sonra gerekiyorsa aracı çağır.
+At each step, first explain briefly what you need to do,
+then call a tool if needed.
 
-Düşüncelerini bir cümleyle sınırla.
+Keep your thoughts to one sentence.
 
-Kullanıcı kendisi hakkında kalıcı bir bilgi verirse
-(hatırlanması gereken isim veya tercih gibi),
-hafizaya_kaydet aracını kullan.
+If the user shares a lasting fact about themselves
+(such as a name or preference that should be remembered),
+use the save_to_memory tool.
 
-Gerektiğinde daha önce kaydedilmiş bilgileri
-hafizadan_oku aracıyla kontrol et.
+When needed, check previously saved facts
+with the read_from_memory tool.
 
-Yeterli bilgiye ulaştığında nihai cevabını ver.
-{hafiza_metni}"""
+When you have enough information, give your final answer.
+{memory_text}"""
 
 
-def react_agent_baslat():
-    mesajlar = []
+def start_react_agent():
+    messages = []
 
-    print("Agent hazır. Çıkmak için 'q' yaz.\n")
+    print("Agent ready. Type 'q' to quit.\n")
 
     while True:
-        soru = input("Sen: ").strip()
+        question = input("You: ").strip()
 
-        if soru.lower() in ["q", "çık", "exit"]:
-            print("Görüşürüz!")
+        if question.lower() in ["q", "exit", "quit"]:
+            print("See you!")
             break
 
-        if not soru:
+        if not question:
             continue
 
-        mesajlar.append(
+        messages.append(
             {
                 "role": "user",
-                "content": soru
+                "content": question
             }
         )
 
-        adim = 0
+        step = 0
 
-        while adim < 5:
-            adim += 1
+        while step < 5:
+            step += 1
 
-            mesaj = client.messages.create(
+            response = client.messages.create(
                 model=MODEL,
                 max_tokens=500,
-                system=react_system_prompt_olustur(),
-                tools=araclar,
-                messages=mesajlar
+                system=build_react_system_prompt(),
+                tools=tools,
+                messages=messages
             )
 
-            mesajlar.append(
+            messages.append(
                 {
                     "role": "assistant",
-                    "content": mesaj.content
+                    "content": response.content
                 }
             )
 
-            for blok in mesaj.content:
-                if blok.type == "text" and blok.text.strip():
-                    print(f"[Adım {adim}]: {blok.text}")
+            for block in response.content:
+                if block.type == "text" and block.text.strip():
+                    print(f"[Step {step}]: {block.text}")
 
-            if mesaj.stop_reason != "tool_use":
+            if response.stop_reason != "tool_use":
                 break
 
-            tool_sonuclari = []
+            tool_results = []
 
-            for blok in mesaj.content:
-                if blok.type != "tool_use":
+            for block in response.content:
+                if block.type != "tool_use":
                     continue
 
-                fonksiyon = ARAC_FONKSIYONLARI.get(blok.name)
+                function = tool_functions.get(block.name)
 
-                if fonksiyon is None:
-                    sonuc = f"HATA: '{blok.name}' yok"
+                if function is None:
+                    result = f"ERROR: '{block.name}' does not exist"
 
                 else:
                     try:
-                        sonuc = fonksiyon(**blok.input)
+                        result = function(**block.input)
 
                     except Exception as e:
-                        sonuc = f"HATA: {str(e)}"
+                        result = f"ERROR: {str(e)}"
 
                 print(
-                    f"[Eylem]: {blok.name}({blok.input}) → {sonuc}"
+                    f"[Action]: {block.name}({block.input}) → {result}"
                 )
 
-                tool_sonuclari.append(
+                tool_results.append(
                     {
                         "type": "tool_result",
-                        "tool_use_id": blok.id,
-                        "content": str(sonuc)
+                        "tool_use_id": block.id,
+                        "content": str(result)
                     }
                 )
 
-            mesajlar.append(
+            messages.append(
                 {
                     "role": "user",
-                    "content": tool_sonuclari
+                    "content": tool_results
                 }
             )
 
@@ -284,4 +284,4 @@ def react_agent_baslat():
 
 
 if __name__ == "__main__":
-    react_agent_baslat()
+    start_react_agent()

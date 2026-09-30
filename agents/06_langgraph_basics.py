@@ -19,12 +19,12 @@ MODEL = "claude-sonnet-4-6"
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
-    adim_sayisi: int
+    step_count: int
 
 
 def agent_node(state: AgentState):
-    adim_sayisi = state.get("adim_sayisi", 0) + 1
-    mesaj = client.messages.create(
+    step_count = state.get("step_count", 0) + 1
+    message = client.messages.create(
         model=MODEL,
         max_tokens=500,
         messages=[
@@ -40,43 +40,43 @@ def agent_node(state: AgentState):
         ]
     )
 
-    cevap = mesaj.content[0].text
+    answer = message.content[0].text
 
     return {
         "messages": [
             {
             "role": "assistant",
-            "content": cevap
+            "content": answer
             }
         ],
-            "adim_sayisi": adim_sayisi
+            "step_count": step_count
 }
 
 
-graf = StateGraph(AgentState)
+graph = StateGraph(AgentState)
 
-graf.add_node("agent", agent_node)
+graph.add_node("agent", agent_node)
 
-graf.set_entry_point("agent")
+graph.set_entry_point("agent")
 
-graf.add_edge("agent", END)
+graph.add_edge("agent", END)
 
-app = graf.compile()
+app = graph.compile()
 
 
-sonuc = app.invoke(
+result = app.invoke(
     {
         "messages": [
             {
                 "role": "user",
-                "content": "Merhaba, kısaca kendini tanıt."
+                "content": "Hello, briefly introduce yourself."
             }
         ],
-        "adim_sayisi": 0
+        "step_count": 0
     }
 )
 
-print(sonuc["messages"][-1])
+print(result["messages"][-1])
 
 print(app.get_graph().draw_ascii())
-print("Adım sayısı:", sonuc["adim_sayisi"])
+print("Step count:", result["step_count"])

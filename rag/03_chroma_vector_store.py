@@ -1,4 +1,3 @@
-import numpy as np
 import voyageai
 import chromadb
 from dotenv import load_dotenv
@@ -12,46 +11,46 @@ client_db = chromadb.PersistentClient(
     path="./chroma_db"
 )
 
-koleksiyon = client_db.get_or_create_collection(
-    name="sirket_politikalari"
+collection = client_db.get_or_create_collection(
+    name="company_policies"
 )
 
 
-def voyage_embed_document(metinler):
-    sonuc = vo.embed(
-        metinler,
+def voyage_embed_document(texts):
+    result = vo.embed(
+        texts,
         model="voyage-4",
         input_type="document"
     )
 
-    return sonuc.embeddings
+    return result.embeddings
 
 
-def voyage_embed_query(metin):
-    sonuc = vo.embed(
-        [metin],
+def voyage_embed_query(text):
+    result = vo.embed(
+        [text],
         model="voyage-4",
         input_type="query"
     )
 
-    return sonuc.embeddings[0]
+    return result.embeddings[0]
 
 
 
-chunklar = [
-    "Şirketimiz çalışanlarına yılda 14 gün yıllık izin verir.",
-    "Uzaktan çalışanlar VPN kullanmalıdır.",
-    "Çalışanlara her ayın sonunda maaş ödemesi yapılır.",
-    "Şirket çalışanlarının güvenlik eğitimlerine katılması zorunludur.",
-    "Yıllık performans değerlendirmeleri her yılın sonunda gerçekleştirilir."
+chunks = [
+    "Our company gives employees 14 days of annual leave per year.",
+    "Remote employees must use a VPN.",
+    "Salaries are paid at the end of each month.",
+    "All employees must attend security training.",
+    "Annual performance reviews take place at the end of each year."
 ]
 
 
-embeddingler = voyage_embed_document(
-    chunklar
+embeddings = voyage_embed_document(
+    chunks
 )
 
-koleksiyon.add(
+collection.add(
     ids=[
         "chunk_0",
         "chunk_1",
@@ -60,87 +59,87 @@ koleksiyon.add(
         "chunk_4"
     ],
 
-    embeddings=embeddingler,
+    embeddings=embeddings,
 
-    documents=chunklar,
+    documents=chunks,
 
     metadatas=[
         {
-            "kaynak": "sirket_politikalari.txt",
+            "source": "company_policies.txt",
             "chunk_no": 0,
-            "kategori": "izin"
+            "category": "leave"
         },
         {
-            "kaynak": "sirket_politikalari.txt",
+            "source": "company_policies.txt",
             "chunk_no": 1,
-            "kategori": "vpn"
+            "category": "vpn"
         },
         {
-            "kaynak": "sirket_politikalari.txt",
+            "source": "company_policies.txt",
             "chunk_no": 2,
-            "kategori": "maas"
+            "category": "salary"
         },
         {
-            "kaynak": "sirket_politikalari.txt",
+            "source": "company_policies.txt",
             "chunk_no": 3,
-            "kategori": "guvenlik"
+            "category": "security"
         },
         {
-            "kaynak": "sirket_politikalari.txt",
+            "source": "company_policies.txt",
             "chunk_no": 4,
-            "kategori": "performans"
+            "category": "performance"
         }
     ]
 )
 
 
-print(koleksiyon.count())
+print(collection.count())
 
 
-soru = "Yıllık izin kaç gün?"
+question = "How many days of annual leave are there?"
 
 
-soru_vektor = voyage_embed_query(
-    soru
+question_vector = voyage_embed_query(
+    question
 )
 
 
-sonuclar = koleksiyon.query(
-    query_embeddings=[soru_vektor],
+results = collection.query(
+    query_embeddings=[question_vector],
     n_results=3
 )
 
 
-print(sonuclar["documents"])
+print(results["documents"])
 
-print(sonuclar["distances"])
+print(results["distances"])
 
-print(sonuclar["metadatas"])
+print(results["metadatas"])
 
 
 
-filtreli_sonuclar = koleksiyon.query(
-    query_embeddings=[soru_vektor],
+filtered_results = collection.query(
+    query_embeddings=[question_vector],
     n_results=3,
     where={
-        "kategori": "izin"
+        "category": "leave"
     }
 )
 
 
 print(
-    filtreli_sonuclar["documents"]
+    filtered_results["documents"]
 )
 
-# koleksiyon.delete(
+# collection.delete(
 #     ids=["chunk_1"]
 # )
 
 
 
-# koleksiyon.update(
+# collection.update(
 #     ids=["chunk_0"],
 #     documents=[
-#         "Şirketimiz çalışanlarına yılda 20 gün yıllık izin verir."
+#         "Our company gives employees 20 days of annual leave per year."
 #     ]
 # )

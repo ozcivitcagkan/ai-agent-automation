@@ -11,68 +11,68 @@ client = anthropic.Anthropic()
 MODEL = "claude-sonnet-4-6"
 
 
-def hesap_makinesi_calistir(islem, sayi1, sayi2):
+def run_calculator(operation, number1, number2):
 
     try:
 
-        if islem == "topla":
-            return sayi1 + sayi2
+        if operation == "add":
+            return number1 + number2
 
-        elif islem == "cikar":
-            return sayi1 - sayi2
+        elif operation == "subtract":
+            return number1 - number2
 
-        elif islem == "carp":
-            return sayi1 * sayi2
+        elif operation == "multiply":
+            return number1 * number2
 
-        elif islem == "bol":
+        elif operation == "divide":
 
-            if sayi2 == 0:
-                return "HATA: Sıfıra bölme yapılamaz"
+            if number2 == 0:
+                return "ERROR: Cannot divide by zero"
 
-            return sayi1 / sayi2
+            return number1 / number2
 
         else:
-            return f"HATA: Bilinmeyen işlem: {islem}"
+            return f"ERROR: Unknown operation: {operation}"
 
     except Exception as e:
 
-        return f"HATA: Hesaplama sırasında hata oluştu: {str(e)}"
+        return f"ERROR: Something went wrong during the calculation: {str(e)}"
 
 
-def hava_durumu_calistir(sehir=None):
+def run_weather(city=None):
 
-    if not sehir:
-        return "HATA: Şehir belirtilmedi"
+    if not city:
+        return "ERROR: No city given"
 
-    dummy_veri = {
-        "İstanbul": "22°C, parçalı bulutlu",
-        "Ankara": "18°C, açık"
+    dummy_data = {
+        "Istanbul": "22°C, partly cloudy",
+        "Ankara": "18°C, clear"
     }
 
-    if sehir not in dummy_veri:
+    if city not in dummy_data:
 
-        mevcut_sehirler = list(dummy_veri.keys())
+        available_cities = list(dummy_data.keys())
 
         return (
-            f"HATA: '{sehir}' için veri bulunamadı. "
-            f"Mevcut şehirler: {mevcut_sehirler}"
+            f"ERROR: No data found for '{city}'. "
+            f"Available cities: {available_cities}"
         )
 
-    return dummy_veri[sehir]
+    return dummy_data[city]
 
 system_prompt = """
-Tool bir hata döndürürse kullanıcıya kısa ve doğrudan cevap ver.
-Ek açıklama, emoji veya gereksiz öneri ekleme.
+If a tool returns an error, give the user a short and direct answer.
+Do not add extra explanations, emoji or unneeded suggestions.
 """
 
-araclar = [
+tools = [
 
     {
-        "name": "hesap_makinesi",
+        "name": "calculator",
 
         "description": (
-            "İki sayı arasında toplama, çıkarma, "
-            "çarpma veya bölme işlemi yapar."
+            "Adds, subtracts, "
+            "multiplies or divides two numbers."
         ),
 
         "input_schema": {
@@ -81,47 +81,47 @@ araclar = [
 
             "properties": {
 
-                "islem": {
+                "operation": {
                     "type": "string",
                     "enum": [
-                        "topla",
-                        "cikar",
-                        "carp",
-                        "bol"
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide"
                     ]
                 },
 
-                "sayi1": {
+                "number1": {
                     "type": "number"
                 },
 
-                "sayi2": {
+                "number2": {
                     "type": "number"
                 }
             },
 
             "required": [
-                "islem",
-                "sayi1",
-                "sayi2"
+                "operation",
+                "number1",
+                "number2"
             ]
         }
     },
 
     {
-        "name": "hava_durumu",
-        "description": "Bir şehrin güncel hava durumunu verir.",
+        "name": "get_weather",
+        "description": "Returns the current weather for a city.",
         "input_schema": {
             "type": "object",
             "properties": {
 
-                "sehir": {
+                "city": {
                     "type": "string"
                 }
             },
 
             "required": [
-                "sehir"
+                "city"
             ]
         }
     }
@@ -129,119 +129,119 @@ araclar = [
 
 
 
-ARAC_FONKSIYONLARI = {
+tool_functions = {
 
-    "hesap_makinesi": hesap_makinesi_calistir,
-    "hava_durumu": hava_durumu_calistir
+    "calculator": run_calculator,
+    "get_weather": run_weather
 }
 
-def guvenli_istek(mesajlar, deneme=3):
+def safe_request(messages, attempts=3):
 
-    for i in range(deneme):
+    for i in range(attempts):
 
         try:
 
             return client.messages.create(
                 model=MODEL,
                 max_tokens=500,
-                tools=araclar,
+                tools=tools,
                 system=system_prompt,
-                messages=mesajlar
+                messages=messages
             )
 
         except RateLimitError:
 
-            bekleme = 2 ** i
+            wait_time = 2 ** i
 
             print(
-                f"Rate limit oluştu. "
-                f"{bekleme} saniye bekleniyor..."
+                f"Hit the rate limit. "
+                f"Waiting {wait_time} seconds..."
             )
 
-            time.sleep(bekleme)
+            time.sleep(wait_time)
 
         except APIError as e:
 
-            print(f"API hatası: {e}")
+            print(f"API error: {e}")
 
             raise
 
     raise Exception(
-        "Maksimum API deneme sayısına ulaşıldı."
+        "Reached the maximum number of API attempts."
     )
 
-# mesajlar = [
+# messages = [
 
 #     {
 #         "role": "user",
-#         "content": "Paris'te hava nasıl?"
+#         "content": "What is the weather like in Paris?"
 #     }
 
 # ]
 
-mesajlar = [
+messages = [
 
     {
         "role": "user",
-        "content": "10'u 0'a böl"
+        "content": "Divide 10 by 0"
     }
 
 ]
 
 
-MAX_ADIM = 5
+MAX_STEPS = 5
 
-adim = 0
-
-
-while adim < MAX_ADIM:
-
-    adim += 1
-    mesaj = guvenli_istek(mesajlar)
+step = 0
 
 
-    mesajlar.append({
+while step < MAX_STEPS:
+
+    step += 1
+    response = safe_request(messages)
+
+
+    messages.append({
 
         "role": "assistant",
-        "content": mesaj.content
+        "content": response.content
 
     })
 
 
-    if mesaj.stop_reason != "tool_use":
+    if response.stop_reason != "tool_use":
 
-        for blok in mesaj.content:
-            if blok.type == "text":
-                print(blok.text)
+        for block in response.content:
+            if block.type == "text":
+                print(block.text)
 
         break
 
 
 
-    tool_sonuclari = []
+    tool_results = []
 
 
 
-    for blok in mesaj.content:
-        if blok.type != "tool_use":
+    for block in response.content:
+        if block.type != "tool_use":
             continue
 
 
-        print(f"Tool çağrıldı: {blok.name}")
+        print(f"Tool called: {block.name}")
 
 
 
-        fonksiyon = ARAC_FONKSIYONLARI.get(
-            blok.name
+        function = tool_functions.get(
+            block.name
         )
 
 
 
-        if fonksiyon is None:
+        if function is None:
 
-            sonuc = (
-                f"HATA: '{blok.name}' "
-                f"adında bir araç yok"
+            result = (
+                f"ERROR: There is no tool "
+                f"named '{block.name}'"
             )
 
 
@@ -249,40 +249,40 @@ while adim < MAX_ADIM:
 
             try:
 
-                sonuc = fonksiyon(**blok.input)
+                result = function(**block.input)
 
             except Exception as e:
 
-                sonuc = (
-                    "HATA: Araç çalışırken "
-                    f"hata oluştu: {str(e)}"
+                result = (
+                    "ERROR: Something went wrong "
+                    f"while running the tool: {str(e)}"
                 )
 
 
-        print(f"Tool sonucu: {sonuc}")
+        print(f"Tool result: {result}")
 
 
-        tool_sonuclari.append({
+        tool_results.append({
 
             "type": "tool_result",
-            "tool_use_id": blok.id,
-            "content": str(sonuc)
+            "tool_use_id": block.id,
+            "content": str(result)
 
         })
 
 
 
-    mesajlar.append({
+    messages.append({
 
         "role": "user",
-        "content": tool_sonuclari
+        "content": tool_results
 
     })
 
 
-if adim >= MAX_ADIM:
+if step >= MAX_STEPS:
 
     print(
-        "\nÜzgünüm, bu isteği tamamlayamadım. "
-        "Çok fazla işlem gerekti."
+        "\nSorry, I could not finish this request. "
+        "It needed too many steps."
     )
